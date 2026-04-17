@@ -15,6 +15,7 @@ interface MarkEntry {
   total: number;
   grade: string;
   subjectId: { name: string; code: string; passMarks: number } | string;
+  examId: { _id: string; name: string; type: string; academicYear: string; term?: string };
 }
 
 interface ExamGroup {
@@ -56,7 +57,7 @@ export default function PublicMarksheetPage() {
 
   const groups: ExamGroup[] = result
     ? Object.values(result.byExam).map(marks => ({
-        exam: (marks[0]?.examId ?? marks[0]?.['examId']) as ExamGroup['exam'],
+        exam: marks[0]?.examId,
         marks,
       }))
     : [];
