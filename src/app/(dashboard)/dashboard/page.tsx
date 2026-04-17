@@ -1,0 +1,242 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { Card, Col, Row, Tag, Typography, Skeleton, Empty } from 'antd';
+import {
+  TeamOutlined, UserOutlined, BookOutlined, RiseOutlined, CalendarOutlined,
+} from '@ant-design/icons';
+import { DashboardStats } from '@/types';
+import api from '@/lib/api';
+import { formatDate } from '@/lib/utils';
+import {
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer,
+} from 'recharts';
+import { useAuth } from '@/context/AuthContext';
+
+const { Title, Text } = Typography;
+
+const statConfig = [
+  {
+    key: 'totalStudents' as const,
+    title: 'Total Students',
+    icon: <TeamOutlined />,
+    color: '#2563eb',
+    bg: '#eff6ff',
+    getValue: (s: DashboardStats) => s.counts.totalStudents,
+    getDesc: (s: DashboardStats) => `${s.counts.activeStudents} active`,
+  },
+  {
+    key: 'totalTeachers' as const,
+    title: 'Teachers',
+    icon: <UserOutlined />,
+    color: '#16a34a',
+    bg: '#f0fdf4',
+    getValue: (s: DashboardStats) => s.counts.totalTeachers,
+    getDesc: () => 'Staff members',
+  },
+  {
+    key: 'totalClasses' as const,
+    title: 'Classes',
+    icon: <BookOutlined />,
+    color: '#7c3aed',
+    bg: '#f5f3ff',
+    getValue: (s: DashboardStats) => s.counts.totalClasses,
+    getDesc: () => 'Active classes',
+  },
+  {
+    key: 'attendance' as const,
+    title: "Today's Attendance",
+    icon: <RiseOutlined />,
+    color: '#ea580c',
+    bg: '#fff7ed',
+    getValue: (s: DashboardStats) => `${s.attendance.todayPercentage}%`,
+    getDesc: () => 'Present today',
+  },
+];
+
+function ChartTooltip({ active, payload, label }: {
+  active?: boolean; payload?: { value: number }[]; label?: string;
+}) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div style={{
+      background: '#fff', border: '1px solid #f0f0f0', borderRadius: 8,
+      padding: '8px 12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+    }}>
+      <Text type="secondary" style={{ fontSize: 11 }}>{label ? formatDate(label) : ''}</Text>
+      <div style={{ fontWeight: 600, marginTop: 2 }}>{payload[0].value}% attendance</div>
+    </div>
+  );
+}
+
+export default function DashboardPage() {
+  const { user } = useAuth();
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.get<{ data: DashboardStats }>('/dashboard/stats')
+      .then((res) => setStats(res.data.data))
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
+
+  const greetingHour = new Date().getHours();
+  const greeting = greetingHour < 12 ? 'Good morning' : greetingHour < 17 ? 'Good afternoon' : 'Good evening';
+
+  if (loading) {
+    return (
+      <div>
+        <Skeleton active paragraph={{ rows: 1 }} style={{ marginBottom: 24 }} />
+        <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+          {[1, 2, 3, 4].map((i) => (
+            <Col xs={12} lg={6} key={i}>
+              <Card><Skeleton active paragraph={{ rows: 2 }} /></Card>
+            </Col>
+          ))}
+        </Row>
+        <Row gutter={[16, 16]}>
+          <Col xs={24} lg={16}><Card style={{ height: 300 }}><Skeleton active paragraph={{ rows: 6 }} /></Card></Col>
+          <Col xs={24} lg={8}><Card style={{ height: 300 }}><Skeleton active paragraph={{ rows: 6 }} /></Card></Col>
+        </Row>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      {/* Page header */}
+      <div style={{ marginBottom: 24 }}>
+        <Title level={3} style={{ margin: 0 }}>
+          {greeting}{user?.name ? `, ${user.name.split(' ')[0]}` : ''}
+        </Title>
+        <Text type="secondary">Here&apos;s what&apos;s happening at your institution today.</Text>
+      </div>
+
+      {/* Stat cards */}
+      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+        {statConfig.map((cfg) => {
+          const value = stats ? cfg.getValue(stats) : '—';
+          const desc = stats ? cfg.getDesc(stats) : '';
+          return (
+            <Col xs={24} sm={12} lg={6} key={cfg.key}>
+              <Card
+                style={{ borderRadius: 10, border: '1px solid #f0f0f0' }}
+                styles={{ body: { padding: '18px 20px' } }}
+              >
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+                  <div>
+                    <Text style={{ fontSize: 11, fontWeight: 600, color: '#8c8c8c', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      {cfg.title}
+                    </Text>
+                    <div style={{ fontSize: 28, fontWeight: 700, lineHeight: 1.2, margin: '6px 0 4px' }}>
+                      {value}
+                    </div>
+                    <Text type="secondary" style={{ fontSize: 12 }}>{desc}</Text>
+                  </div>
+                  <div style={{
+                    width: 40, height: 40, borderRadius: 10,
+                    background: cfg.bg,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 18, color: cfg.color, flexShrink: 0,
+                  }}>
+                    {cfg.icon}
+                  </div>
+                </div>
+              </Card>
+            </Col>
+          );
+        })}
+      </Row>
+
+      {/* Chart + Upcoming Exams */}
+      <Row gutter={[16, 16]}>
+        {/* Attendance Chart */}
+        <Col xs={24} lg={16}>
+          <Card
+            title="Attendance Trend"
+            extra={<Tag color="blue">{stats?.attendance.todayPercentage ?? 0}% today</Tag>}
+            style={{ borderRadius: 10 }}
+          >
+            <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 16 }}>
+              Last 7 days attendance percentage
+            </Text>
+            <ResponsiveContainer width="100%" height={200}>
+              <AreaChart
+                data={stats?.attendance.trend || []}
+                margin={{ top: 4, right: 4, left: -20, bottom: 0 }}
+              >
+                <defs>
+                  <linearGradient id="attGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#2563eb" stopOpacity={0.15} />
+                    <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fontSize: 11, fill: '#8c8c8c' }}
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={(v: string) => new Date(v).toLocaleDateString('en', { weekday: 'short' })}
+                />
+                <YAxis
+                  tick={{ fontSize: 11, fill: '#8c8c8c' }}
+                  tickLine={false}
+                  axisLine={false}
+                  domain={[0, 100]}
+                  tickFormatter={(v: number) => `${v}%`}
+                />
+                <Tooltip content={<ChartTooltip />} />
+                <Area
+                  type="monotone"
+                  dataKey="percentage"
+                  stroke="#2563eb"
+                  strokeWidth={2}
+                  fill="url(#attGrad)"
+                  dot={false}
+                  activeDot={{ r: 5, strokeWidth: 0 }}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </Card>
+        </Col>
+
+        {/* Upcoming Exams */}
+        <Col xs={24} lg={8}>
+          <Card
+            title={<span><CalendarOutlined style={{ marginRight: 8 }} />Upcoming Exams</span>}
+            extra={stats?.upcomingExams.length ? <Tag>{stats.upcomingExams.length}</Tag> : null}
+            style={{ borderRadius: 10 }}
+            styles={{ body: { padding: '12px 16px' } }}
+          >
+            {!stats?.upcomingExams.length ? (
+              <Empty description="No upcoming exams" style={{ margin: '24px 0' }} image={Empty.PRESENTED_IMAGE_SIMPLE} />
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {stats.upcomingExams.map((exam) => (
+                  <div
+                    key={exam._id}
+                    style={{
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+                      gap: 12, padding: '10px 12px', borderRadius: 8, background: '#fafafa',
+                    }}
+                  >
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <Text strong style={{ fontSize: 13, display: 'block', lineHeight: '1.3' }}>{exam.name}</Text>
+                      <Text type="secondary" style={{ fontSize: 11, textTransform: 'capitalize' }}>{exam.type} exam</Text>
+                    </div>
+                    <Text type="secondary" style={{ fontSize: 12, flexShrink: 0 }}>
+                      {exam.startDate ? formatDate(exam.startDate) : 'TBD'}
+                    </Text>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        </Col>
+      </Row>
+    </div>
+  );
+}
