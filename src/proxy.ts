@@ -1,36 +1,51 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-const PUBLIC_PATHS = ['/login', '/onboarding', '/'];
-const DASHBOARD_PATHS = ['/dashboard', '/students', '/teachers', '/classes', '/routine', '/attendance', '/exams', '/marksheet', '/certificates', '/settings'];
-const PORTAL_PATHS = ['/portal'];
-const ADMIN_PATHS = ['/saas-admin'];
+// Routes accessible without authentication
+const PUBLIC_PREFIXES = ['/login', '/onboarding'];
+// /marksheet (exactly) is a public lookup page; /marksheet/[id] requires auth
+const PUBLIC_EXACT = new Set(['/marksheet', '/']);
+
+// Protected route prefixes
+const DASHBOARD_PREFIXES = [
+  '/dashboard', '/students', '/teachers', '/classes', '/subjects',
+  '/routine', '/attendance', '/exams', '/marksheet/', '/certificates',
+  '/settings', '/finance',
+];
+const PORTAL_PREFIXES  = ['/portal'];
+const ADMIN_PREFIXES   = ['/saas-admin'];
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const accessToken = request.cookies.get('accessToken')?.value
-    || request.headers.get('authorization')?.split(' ')[1];
+  const accessToken = request.cookies.get('accessToken')?.value;
 
-  const isPublic = PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'));
-  const isDashboard = DASHBOARD_PATHS.some((p) => pathname.startsWith(p));
-  const isPortal = PORTAL_PATHS.some((p) => pathname.startsWith(p));
-  const isAdmin = ADMIN_PATHS.some((p) => pathname.startsWith(p));
+  const isPublic =
+    PUBLIC_EXACT.has(pathname) ||
+    PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + '/'));
 
-  // Not authenticated → redirect to login
-  if ((isDashboard || isPortal || isAdmin) && !accessToken) {
+  const isProtected =
+    DASHBOARD_PREFIXES.some((p) => pathname.startsWith(p)) ||
+    PORTAL_PREFIXES.some((p)  => pathname.startsWith(p))   ||
+    ADMIN_PREFIXES.some((p)   => pathname.startsWith(p));
+
+  // Unauthenticated user hitting a protected route → send to login
+  if (isProtected && !accessToken) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
-  // Already authenticated → redirect away from login/onboarding
+  // Authenticated user hitting the root → send to dashboard
+  // (client-side DashboardLayout handles role-based redirect from /dashboard)
+  if (pathname === '/' && accessToken) {
+    return NextResponse.redirect(new URL('/dashboard', request.url));
+  }
+
+  // Authenticated user trying to access login/onboarding → send to dashboard
   if (isPublic && pathname !== '/' && accessToken) {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
-  // Root → redirect to login or dashboard
+  // Unauthenticated root → login
   if (pathname === '/') {
-    if (accessToken) {
-      return NextResponse.redirect(new URL('/dashboard', request.url));
-    }
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
