@@ -9,7 +9,7 @@ interface AuthContextValue {
   user: User | null;
   tenant: Tenant | null;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<User>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -51,7 +51,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [refreshUser]);
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string): Promise<User> => {
     const res = await api.post<{ data: { user: User; accessToken: string } }>('/auth/login', {
       email, password,
     });
@@ -59,6 +59,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setStoredUser(u, accessToken);
     setUser(u);
     if (u.tenantId) await fetchTenant();
+    return u;
   };
 
   const logout = async () => {

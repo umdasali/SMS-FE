@@ -34,12 +34,8 @@ export default function LoginPage() {
   const onSubmit = async (data: FormData) => {
     setError('');
     try {
-      await login(data.email, data.password);
-      const stored = localStorage.getItem('user');
-      if (stored) {
-        const user = JSON.parse(stored) as { role: string };
-        router.push(getRoleRedirect(user.role as Parameters<typeof getRoleRedirect>[0]));
-      }
+      const u = await login(data.email, data.password);
+      router.push(getRoleRedirect(u.role));
     } catch (err: unknown) {
       const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
       setError(message || 'Invalid credentials. Please try again.');
