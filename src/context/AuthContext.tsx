@@ -35,21 +35,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const res = await api.get<{ data: User }>('/auth/me');
       setUser(res.data.data);
       if (res.data.data.tenantId) await fetchTenant();
-    } catch {
-      clearStoredAuth();
-      setUser(null);
+    } catch (err: unknown) {
+      // Only clear session on definitive auth rejections.
+      // Network errors, 5xx, or timeouts should not log the user out.
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      if (status === 401 || status === 403) {
+        clearStoredAuth();
+        setUser(null);
+        setTenant(null);
+      }
     }
   }, [fetchTenant]);
 
   useEffect(() => {
     const stored = getStoredUser();
     if (stored) {
+      // Unblock the UI immediately — don't wait for the API round-trip.
       setUser(stored);
-      refreshUser().finally(() => setIsLoading(false));
+      setIsLoading(false);
+      // Silently validate the token in the background.
+      refreshUser();
     } else {
       setIsLoading(false);
     }
-  }, [refreshUser]);
+  // refreshUser is a stable useCallback reference; listing it here is safe
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const login = async (email: string, password: string): Promise<User> => {
     const res = await api.post<{ data: { user: User; accessToken: string } }>('/auth/login', {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useForm, Controller } from 'react-hook-form';
@@ -9,7 +9,7 @@ import { z } from 'zod';
 import { useAuth } from '@/context/AuthContext';
 import { getRoleRedirect } from '@/lib/auth';
 import { Form, Input, Button, Card, Typography, Alert, Space } from 'antd';
-import { UserOutlined, MailOutlined, LockOutlined, ReadOutlined } from '@ant-design/icons';
+import { UserOutlined, LockOutlined, ReadOutlined } from '@ant-design/icons';
 
 const { Title, Text } = Typography;
 
@@ -22,8 +22,17 @@ type FormData = z.infer<typeof schema>;
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login } = useAuth();
+  const { login, user } = useAuth();
   const [error, setError] = useState('');
+  // Holds the target route after a successful login. Navigation fires only
+  // after the auth context confirms user is non-null (state committed).
+  const [pendingRedirect, setPendingRedirect] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (pendingRedirect && user) {
+      router.replace(pendingRedirect);
+    }
+  }, [pendingRedirect, user, router]);
 
   const {
     control,
@@ -35,7 +44,9 @@ export default function LoginPage() {
     setError('');
     try {
       const u = await login(data.email, data.password);
-      router.push(getRoleRedirect(u.role));
+      // Set the redirect target — the useEffect above will fire once the
+      // auth context re-renders with user !== null.
+      setPendingRedirect(getRoleRedirect(u.role));
     } catch (err: unknown) {
       const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
       setError(message || 'Invalid credentials. Please try again.');
@@ -75,11 +86,11 @@ export default function LoginPage() {
           </Text>
 
           {error && (
-            <Alert title={error} type="error" showIcon style={{ marginBottom: 20, borderRadius: 8 }} />
+            <Alert message={error} type="error" showIcon style={{ marginBottom: 20, borderRadius: 8 }} />
           )}
 
           <form onSubmit={handleSubmit(onSubmit)}>
-            <Space orientation="vertical" size={16} style={{ width: '100%' }}>
+            <Space direction="vertical" size={16} style={{ width: '100%' }}>
               <Form.Item
                 validateStatus={errors.email ? 'error' : ''}
                 help={errors.email?.message}
@@ -130,7 +141,7 @@ export default function LoginPage() {
                 type="primary"
                 htmlType="submit"
                 size="large"
-                loading={isSubmitting}
+                loading={isSubmitting || !!pendingRedirect}
                 block
                 style={{ borderRadius: 8, height: 44 }}
               >
