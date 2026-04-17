@@ -1,12 +1,12 @@
 'use client';
 
-import { pdf } from '@react-pdf/renderer';
+import { pdf, DocumentProps } from '@react-pdf/renderer';
 import { Button } from 'antd';
 import { DownloadOutlined, LoadingOutlined } from '@ant-design/icons';
 import React, { useEffect, useRef, useState } from 'react';
 
 interface PDFDownloadButtonProps {
-  document: React.ReactElement;
+  document: React.ReactElement<DocumentProps>;
   fileName: string;
   buttonText?: string;
   loadingText?: string;
