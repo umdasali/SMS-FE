@@ -261,7 +261,7 @@ function FeeStructuresPanel({ classes }: { classes: Class[] }) {
 // FEE SLIPS PANEL
 // ─────────────────────────────────────────────────────────────────────────────
 function FeeSlipsPanel({ classes, tenant }: { classes: Class[]; tenant: Tenant | null }) {
-  const { modal } = App.useApp();
+  const { modal, message } = App.useApp();
   const now = new Date();
   const [period, setPeriod] = useState({ month: now.getMonth() + 1, year: now.getFullYear() });
   const [academicYear, setAcademicYear] = useState(`${now.getFullYear()}-${now.getFullYear() + 1}`);
@@ -308,6 +308,7 @@ function FeeSlipsPanel({ classes, tenant }: { classes: Class[]; tenant: Tenant |
     try {
       await api.patch(`/finance/fee-slips/${slip._id}`, { status: 'paid' });
       fetchSlips();
+      message.success('Fee marked as paid');
     } finally { setUpdatingId(null); }
   };
 
@@ -316,6 +317,7 @@ function FeeSlipsPanel({ classes, tenant }: { classes: Class[]; tenant: Tenant |
     try {
       await api.patch(`/finance/fee-slips/${slip._id}`, { status: 'pending', paymentDate: null });
       fetchSlips();
+      message.success('Fee marked as pending');
     } finally { setUpdatingId(null); }
   };
 
@@ -623,7 +625,7 @@ function AdjustModal({
 }
 
 function PayrollPanel({ tenant }: { tenant: Tenant | null }) {
-  const { modal } = App.useApp();
+  const { modal, message } = App.useApp();
   const now = new Date();
   const [period, setPeriod] = useState({ month: now.getMonth() + 1, year: now.getFullYear() });
   const [slips, setSlips] = useState<Payslip[]>([]);
@@ -658,6 +660,7 @@ function PayrollPanel({ tenant }: { tenant: Tenant | null }) {
     try {
       await api.patch(`/finance/payslips/${slip._id}`, { status: 'paid' });
       fetchSlips();
+      message.success('Salary marked as paid');
     } finally { setUpdatingId(null); }
   };
 
@@ -666,6 +669,7 @@ function PayrollPanel({ tenant }: { tenant: Tenant | null }) {
     try {
       await api.patch(`/finance/payslips/${slip._id}`, { status: 'pending' });
       fetchSlips();
+      message.success('Salary marked as pending');
     } finally { setUpdatingId(null); }
   };
 

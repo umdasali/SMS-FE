@@ -23,6 +23,7 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard', href: '/dashboard', icon: <DashboardOutlined />, roles: ['management', 'teacher'] },
+  { label: 'My Profile', href: '/my-profile', icon: <UserOutlined />, roles: ['teacher'] },
   { label: 'Students', href: '/students', icon: <TeamOutlined />, roles: ['management', 'teacher'] },
   { label: 'Teachers', href: '/teachers', icon: <UserOutlined />, roles: ['management'] },
   { label: 'Classes', href: '/classes', icon: <BookOutlined />, roles: ['management'] },

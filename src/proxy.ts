@@ -10,7 +10,7 @@ const PUBLIC_EXACT = new Set(['/marksheet', '/']);
 const DASHBOARD_PREFIXES = [
   '/dashboard', '/students', '/teachers', '/classes', '/subjects',
   '/routine', '/attendance', '/exams', '/marksheet/', '/certificates',
-  '/settings', '/finance',
+  '/settings', '/finance', '/my-profile',
 ];
 const PORTAL_PREFIXES  = ['/portal'];
 const ADMIN_PREFIXES   = ['/saas-admin'];

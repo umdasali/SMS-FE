@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
@@ -29,7 +29,7 @@ export default function CertificatesPage() {
   const [search, setSearch] = useState('');
   const [total, setTotal] = useState(0);
 
-  const fetchCertificates = (currentPage = page, currentLimit = limit, currentSearch = search) => {
+  const fetchCertificates = useCallback((currentPage = page, currentLimit = limit, currentSearch = search) => {
     setLoading(true);
     const params = new URLSearchParams();
     params.append('page', currentPage.toString());
@@ -43,11 +43,11 @@ export default function CertificatesPage() {
       })
       .catch(() => setCertificates([]))
       .finally(() => setLoading(false));
-  };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    fetchCertificates(page, limit, search);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    fetchCertificates(1, 10, '');
+  }, [fetchCertificates]);
 
   const handleTableChange = (newPage: number, newPageSize: number) => {
     setPage(newPage);

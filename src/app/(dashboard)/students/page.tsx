@@ -5,8 +5,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Student, Class } from '@/types';
 import api from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
 import { DataTable } from '@/components/tables/DataTable';
-import { Button, Avatar, Tag, Select, Typography, Space, Modal, Dropdown } from 'antd';
+import { Button, Avatar, Tag, Select, Typography, Space, Modal, Dropdown, App } from 'antd';
 import {
   UserAddOutlined, EyeOutlined, EditOutlined, DeleteOutlined,
   MoreOutlined, TeamOutlined,
@@ -22,6 +23,9 @@ const statusColor: Record<string, string> = {
 
 export default function StudentsPage() {
   const router = useRouter();
+  const { user } = useAuth();
+  const { message } = App.useApp();
+  const isTeacher = user?.role === 'teacher';
   const [students, setStudents] = useState<Student[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
   const [loading, setLoading] = useState(true);
@@ -80,6 +84,7 @@ export default function StudentsPage() {
     try {
       await api.delete(`/students/${deleteId}`);
       fetchStudents(classFilter, page, limit, search);
+      message.success('Student deleted successfully');
     } finally {
       setDeleting(false);
       setDeleteId(null);
@@ -130,11 +135,11 @@ export default function StudentsPage() {
       key: 'status',
       render: (v) => <Tag color={statusColor[v] || 'default'} style={{ textTransform: 'capitalize' }}>{v}</Tag>,
     },
-    {
+    ...(!isTeacher ? [{
       title: '',
       key: 'actions',
       width: 48,
-      render: (_, s) => (
+      render: (_: unknown, s: Student) => (
         <Dropdown
           menu={{
             items: [
@@ -149,7 +154,7 @@ export default function StudentsPage() {
           <Button type="text" icon={<MoreOutlined />} />
         </Dropdown>
       ),
-    },
+    }] as ColumnsType<Student> : []),
   ];
 
   return (
@@ -161,11 +166,13 @@ export default function StudentsPage() {
           </Typography.Title>
           <Text type="secondary">{total} student{total !== 1 ? 's' : ''} enrolled</Text>
         </div>
-        <Link href="/students/new">
-          <Button type="primary" icon={<UserAddOutlined />} size="medium" style={{ borderRadius: 8 }}>
-            Add Student
-          </Button>
-        </Link>
+        {!isTeacher && (
+          <Link href="/students/new">
+            <Button type="primary" icon={<UserAddOutlined />} size="medium" style={{ borderRadius: 8 }}>
+              Add Student
+            </Button>
+          </Link>
+        )}
       </div>
 
       <div style={{ marginBottom: 16 }}>

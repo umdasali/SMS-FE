@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import api from '@/lib/api';
 import { Student, Certificate, CertificateType } from '@/types';
-import { Button, Card, Select, Alert, Typography, Row, Col } from 'antd';
+import { Button, Card, Select, Alert, Typography, Row, Col, App } from 'antd';
 import {
   ArrowLeftOutlined, SafetyCertificateOutlined, CheckCircleOutlined,
 } from '@ant-design/icons';
@@ -26,6 +26,7 @@ const CERT_TYPES: { value: CertificateType; label: string; desc: string }[] = [
 ];
 
 export default function NewCertificatePage() {
+  const { message } = App.useApp();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { tenant, user } = useAuth();
@@ -68,6 +69,7 @@ export default function NewCertificatePage() {
       };
       const res = await api.post<{ data: Certificate }>('/certificates', { studentId: selectedStudent, type: certType, content });
       setGeneratedCert(res.data.data);
+      message.success('Certificate generated successfully');
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
       setError(msg || 'Failed to generate certificate');

@@ -5,7 +5,7 @@ import api from '@/lib/api';
 import { Class, Subject, Teacher } from '@/types';
 import {
   Button, Card, Tag, Modal, Form, Input, Select, Typography,
-  Row, Col, Divider, Drawer, Alert, Space, Empty, Skeleton, Pagination, InputNumber,
+  Row, Col, Divider, Drawer, Alert, Space, Empty, Skeleton, Pagination, InputNumber, App,
 } from 'antd';
 import {
   BookOutlined, PlusOutlined, EditOutlined, DeleteOutlined,
@@ -17,6 +17,7 @@ const { Title, Text } = Typography;
 const CLASS_PREFIXES = ['Standard', 'Class', 'Grade', 'Semester'];
 
 export default function ClassesPage() {
+  const { message } = App.useApp();
   const [classes, setClasses] = useState<Class[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
@@ -129,6 +130,7 @@ export default function ClassesPage() {
       }
       fetchClasses(page, limit, search);
       setOpen(false);
+      message.success(editing ? 'Class updated successfully' : 'Class created successfully');
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
       setError(msg || 'Failed to save class');
@@ -141,6 +143,7 @@ export default function ClassesPage() {
     try {
       await api.delete(`/classes/${deleteClassId}`);
       fetchClasses(page, limit, search);
+      message.success('Class deleted');
     } finally { setDeletingClass(false); setDeleteClassId(null); }
   };
 
@@ -187,6 +190,7 @@ export default function ClassesPage() {
         setSubjects((p) => [...p, res.data.data]);
       }
       setSubjectOpen(false);
+      message.success(editingSubject ? 'Subject updated' : 'Subject added');
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
       setSubjectError(msg || 'Failed to save subject');
@@ -199,6 +203,7 @@ export default function ClassesPage() {
     try {
       await api.delete(`/subjects/${deleteSubjectId}`);
       setSubjects((p) => p.filter((s) => s._id !== deleteSubjectId));
+      message.success('Subject deleted');
     } finally { setDeletingSubject(false); setDeleteSubjectId(null); }
   };
 

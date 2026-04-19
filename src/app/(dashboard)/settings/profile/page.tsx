@@ -3,15 +3,16 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import api from '@/lib/api';
-import { Button, Input, Card, Avatar, Alert, Typography, Divider } from 'antd';
+import { Button, Input, Card, Avatar, Alert, Typography, Divider, App } from 'antd';
 import {
-  SaveOutlined, LockOutlined, UserOutlined, CheckCircleOutlined,
+  SaveOutlined, LockOutlined, UserOutlined,
 } from '@ant-design/icons';
 import { getInitials } from '@/lib/utils';
 
 const { Title, Text } = Typography;
 
 export default function ProfileSettingsPage() {
+  const { message } = App.useApp();
   const { user, refreshUser } = useAuth();
   const [form, setForm] = useState({ name: '', phone: '' });
   const [passwords, setPasswords] = useState({ current: '', newPw: '', confirm: '' });
@@ -19,7 +20,6 @@ export default function ProfileSettingsPage() {
   const [avatarPreview, setAvatarPreview] = useState('');
   const [saving, setSaving] = useState(false);
   const [savingPw, setSavingPw] = useState(false);
-  const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -34,7 +34,7 @@ export default function ProfileSettingsPage() {
   };
 
   const handleSaveProfile = async () => {
-    setSaving(true); setError(''); setSuccess('');
+    setSaving(true); setError('');
     try {
       const formData = new FormData();
       formData.append('name', form.name);
@@ -42,7 +42,7 @@ export default function ProfileSettingsPage() {
       if (avatar) formData.append('avatar', avatar);
       await api.put('/profile/me', formData);
       await refreshUser();
-      setSuccess('Profile updated successfully!');
+      message.success('Profile updated successfully');
       setAvatar(null);
       setAvatarPreview('');
     } catch (err: unknown) {
@@ -55,10 +55,10 @@ export default function ProfileSettingsPage() {
     if (!passwords.current || !passwords.newPw) { setError('Please fill all password fields'); return; }
     if (passwords.newPw !== passwords.confirm) { setError('New passwords do not match'); return; }
     if (passwords.newPw.length < 8) { setError('Password must be at least 8 characters'); return; }
-    setSavingPw(true); setError(''); setSuccess('');
+    setSavingPw(true); setError('');
     try {
       await api.put('/profile/me/password', { currentPassword: passwords.current, newPassword: passwords.newPw });
-      setSuccess('Password changed successfully!');
+      message.success('Password changed successfully');
       setPasswords({ current: '', newPw: '', confirm: '' });
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
@@ -75,7 +75,6 @@ export default function ProfileSettingsPage() {
         <Text type="secondary">Manage your account information</Text>
       </div>
 
-      {success && <Alert title={success} type="success" showIcon icon={<CheckCircleOutlined />} style={{ marginBottom: 16, borderRadius: 8 }} closable />}
       {error && <Alert title={error} type="error" showIcon style={{ marginBottom: 16, borderRadius: 8 }} />}
 
       {/* Profile Info */}

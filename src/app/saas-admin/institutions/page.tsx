@@ -4,15 +4,21 @@ import { useEffect, useState } from 'react';
 import api from '@/lib/api';
 import { Tenant } from '@/types';
 import { DataTable } from '@/components/tables/DataTable';
-import { Button, Tag, Typography, Card, Row, Col, Drawer, Alert, Statistic, Divider, Popconfirm, Skeleton, App } from 'antd';
+import {
+  Button, Tag, Typography, Card, Row, Col, Drawer, Alert, Statistic, Divider,
+  Popconfirm, Skeleton, App, Form, Input, Select, InputNumber,
+} from 'antd';
 import {
   BankOutlined, CheckCircleOutlined, CloseCircleOutlined, ClockCircleOutlined, EyeOutlined,
   TeamOutlined, UserOutlined, BookOutlined, TrophyOutlined, DollarOutlined, DeleteOutlined,
+  EditOutlined, PauseCircleOutlined, PlayCircleOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { formatDate } from '@/lib/utils';
 
 const { Title, Text } = Typography;
+
+const PLANS = ['free', 'basic', 'pro', 'enterprise'] as const;
 
 interface TenantStats {
   students: number;
@@ -26,6 +32,16 @@ function fmt(n: number) {
   return `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 0 })}`;
 }
 
+function subStatusTag(status: string) {
+  const config: Record<string, { color: string; icon: React.ReactNode }> = {
+    active:    { color: 'success', icon: <PlayCircleOutlined /> },
+    suspended: { color: 'error',   icon: <PauseCircleOutlined /> },
+    expired:   { color: 'warning', icon: <ClockCircleOutlined /> },
+  };
+  const c = config[status] ?? { color: 'default', icon: null };
+  return <Tag color={c.color} icon={c.icon} style={{ textTransform: 'capitalize' }}>{status}</Tag>;
+}
+
 function InstitutionsPageInner() {
   const { modal } = App.useApp();
   const [tenants, setTenants] = useState<Tenant[]>([]);
@@ -34,8 +50,11 @@ function InstitutionsPageInner() {
   const [stats, setStats] = useState<TenantStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [statusUpdating, setStatusUpdating] = useState<string | null>(null);
+  const [subUpdating, setSubUpdating] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const [editingSub, setEditingSub] = useState(false);
+  const [subForm] = Form.useForm();
 
   const fetchTenants = () => {
     setLoading(true);
@@ -48,6 +67,7 @@ function InstitutionsPageInner() {
 
   const openDrawer = async (t: Tenant) => {
     setSelected(t);
+    setEditingSub(false);
     setStats(null);
     setStatsLoading(true);
     try {
@@ -70,6 +90,31 @@ function InstitutionsPageInner() {
     } finally {
       setStatusUpdating(null);
     }
+  };
+
+  const updateSubscription = async (id: string, patch: Partial<{
+    plan: string; status: string; expiresAt: string; pricePerStudent: number; notes: string;
+  }>) => {
+    setSubUpdating(true);
+    setError('');
+    try {
+      const res = await api.put<{ data: Tenant }>(`/tenants/${id}/subscription`, patch);
+      setTenants((prev) => prev.map((t) => (t._id === id ? res.data.data : t)));
+      setSelected(res.data.data);
+      setEditingSub(false);
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setError(msg || 'Failed to update subscription');
+    } finally {
+      setSubUpdating(false);
+    }
+  };
+
+  const handleSubFormSave = async () => {
+    if (!selected) return;
+    const values = await subForm.validateFields().catch(() => null);
+    if (!values) return;
+    await updateSubscription(selected._id, values);
   };
 
   const deleteTenant = async (id: string) => {
@@ -131,7 +176,12 @@ function InstitutionsPageInner() {
     },
     {
       title: 'Plan',
-      render: (_, t) => <Tag style={{ fontSize: 11 }}>{t.subscription?.plan || 'Free'}</Tag>,
+      render: (_, t) => (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <Tag style={{ fontSize: 11, textTransform: 'capitalize' }}>{t.subscription?.plan || 'free'}</Tag>
+          {t.subscription?.status && subStatusTag(t.subscription.status)}
+        </div>
+      ),
     },
     {
       title: 'Status',
@@ -177,7 +227,7 @@ function InstitutionsPageInner() {
         <Text type="secondary">Manage all registered institutions on SchoolFlow</Text>
       </div>
 
-      {error && <Alert title={error} type="error" showIcon style={{ marginBottom: 16, borderRadius: 8 }} />}
+      {error && <Alert message={error} type="error" showIcon style={{ marginBottom: 16, borderRadius: 8 }} />}
 
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         {[
@@ -286,8 +336,6 @@ function InstitutionsPageInner() {
                 { label: 'Location', value: `${selected.city}, ${selected.state}` },
                 { label: 'Country', value: selected.country },
                 { label: 'Joined', value: formatDate(selected.createdAt) },
-                { label: 'Plan', value: selected.subscription?.plan || 'Free' },
-                { label: 'Expires', value: selected.subscription?.expiresAt ? formatDate(selected.subscription.expiresAt) : 'N/A' },
               ].map(({ label, value }) => (
                 <div key={label}>
                   <Text type="secondary" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block' }}>{label}</Text>
@@ -302,8 +350,128 @@ function InstitutionsPageInner() {
 
             <Divider style={{ margin: '0 0 16px' }} />
 
-            {/* Status control */}
-            <Text style={{ display: 'block', marginBottom: 8, fontWeight: 500, fontSize: 13 }}>Update Status</Text>
+            {/* Subscription management */}
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <Text strong style={{ fontSize: 13 }}>Subscription</Text>
+                <Button
+                  size="small"
+                  type="text"
+                  icon={<EditOutlined />}
+                  onClick={() => {
+                    setEditingSub(v => !v);
+                    subForm.setFieldsValue({
+                      plan: selected.subscription?.plan,
+                      expiresAt: selected.subscription?.expiresAt
+                        ? new Date(selected.subscription.expiresAt).toISOString().split('T')[0]
+                        : '',
+                      pricePerStudent: selected.subscription?.pricePerStudent ?? 20,
+                      notes: selected.subscription?.notes ?? '',
+                    });
+                  }}
+                >
+                  {editingSub ? 'Cancel' : 'Edit'}
+                </Button>
+              </div>
+
+              <div style={{ background: '#f8fafc', borderRadius: 10, padding: 14, marginBottom: 12 }}>
+                <Row gutter={[12, 8]}>
+                  <Col span={12}>
+                    <Text type="secondary" style={{ fontSize: 11, display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Plan</Text>
+                    <Tag style={{ textTransform: 'capitalize', marginTop: 2 }}>{selected.subscription?.plan || 'free'}</Tag>
+                  </Col>
+                  <Col span={12}>
+                    <Text type="secondary" style={{ fontSize: 11, display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Sub Status</Text>
+                    <div style={{ marginTop: 2 }}>{subStatusTag(selected.subscription?.status || 'active')}</div>
+                  </Col>
+                  <Col span={12}>
+                    <Text type="secondary" style={{ fontSize: 11, display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Expires</Text>
+                    <Text strong style={{ fontSize: 12 }}>
+                      {selected.subscription?.expiresAt ? formatDate(selected.subscription.expiresAt) : '—'}
+                    </Text>
+                  </Col>
+                  <Col span={12}>
+                    <Text type="secondary" style={{ fontSize: 11, display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Rate</Text>
+                    <Text strong style={{ fontSize: 12 }}>
+                      {fmt(selected.subscription?.pricePerStudent ?? 20)}/student/mo
+                    </Text>
+                  </Col>
+                  {stats && (
+                    <Col span={24}>
+                      <div style={{ background: '#eff6ff', borderRadius: 8, padding: '8px 12px', marginTop: 4 }}>
+                        <Text style={{ fontSize: 12, color: '#1d4ed8' }}>
+                          <DollarOutlined style={{ marginRight: 4 }} />
+                          Monthly billing estimate:{' '}
+                          <strong>
+                            {fmt(stats.students * (selected.subscription?.pricePerStudent ?? 20))}
+                          </strong>
+                          {' '}({stats.students} students × {fmt(selected.subscription?.pricePerStudent ?? 20)})
+                        </Text>
+                      </div>
+                    </Col>
+                  )}
+                  {selected.subscription?.notes && (
+                    <Col span={24}>
+                      <Text type="secondary" style={{ fontSize: 11, display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Notes</Text>
+                      <Text style={{ fontSize: 12 }}>{selected.subscription.notes}</Text>
+                    </Col>
+                  )}
+                </Row>
+              </div>
+
+              {/* Quick subscription status buttons */}
+              <div style={{ display: 'flex', gap: 8, marginBottom: editingSub ? 16 : 0 }}>
+                <Button
+                  size="small"
+                  type={selected.subscription?.status === 'active' ? 'primary' : 'default'}
+                  icon={<PlayCircleOutlined />}
+                  style={{ flex: 1 }}
+                  loading={subUpdating && selected.subscription?.status !== 'active'}
+                  onClick={() => updateSubscription(selected._id, { status: 'active' })}
+                >
+                  Activate
+                </Button>
+                <Button
+                  size="small"
+                  danger
+                  type={selected.subscription?.status === 'suspended' ? 'primary' : 'default'}
+                  icon={<PauseCircleOutlined />}
+                  style={{ flex: 1 }}
+                  loading={subUpdating && selected.subscription?.status === 'active'}
+                  onClick={() => updateSubscription(selected._id, { status: 'suspended' })}
+                >
+                  Suspend
+                </Button>
+              </div>
+
+              {/* Subscription edit form */}
+              {editingSub && (
+                <div style={{ background: '#f8fafc', borderRadius: 10, padding: 14, marginTop: 12 }}>
+                  <Form form={subForm} layout="vertical" size="small">
+                    <Form.Item name="plan" label="Plan">
+                      <Select options={PLANS.map(p => ({ value: p, label: p.charAt(0).toUpperCase() + p.slice(1) }))} />
+                    </Form.Item>
+                    <Form.Item name="expiresAt" label="Expires At">
+                      <Input type="date" />
+                    </Form.Item>
+                    <Form.Item name="pricePerStudent" label="Price per Student (₹/month)">
+                      <InputNumber min={0} style={{ width: '100%' }} prefix="₹" />
+                    </Form.Item>
+                    <Form.Item name="notes" label="Notes">
+                      <Input.TextArea rows={2} placeholder="Internal notes..." />
+                    </Form.Item>
+                    <Button type="primary" size="small" loading={subUpdating} onClick={handleSubFormSave} block>
+                      Save Subscription
+                    </Button>
+                  </Form>
+                </div>
+              )}
+            </div>
+
+            <Divider style={{ margin: '0 0 16px' }} />
+
+            {/* Institution status control */}
+            <Text style={{ display: 'block', marginBottom: 8, fontWeight: 500, fontSize: 13 }}>Institution Status</Text>
             <div style={{ display: 'flex', gap: 8 }}>
               {(['active', 'inactive', 'pending'] as const).map(s => (
                 <Button

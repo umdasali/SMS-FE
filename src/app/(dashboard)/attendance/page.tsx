@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import api from '@/lib/api';
 import { Class, Student, AttendanceStatus } from '@/types';
 import {
-  Button, Card, Select, Typography, Space, Alert, Avatar, Tag, Row, Col, DatePicker,
+  Button, Card, Select, Typography, Space, Avatar, Tag, Row, Col, DatePicker, App,
 } from 'antd';
 import {
   CheckCircleOutlined, CloseCircleOutlined, ClockCircleOutlined, SaveOutlined,
@@ -24,6 +24,7 @@ const STATUS_OPTIONS: { value: AttendanceStatus; label: string; icon: React.Reac
 ];
 
 export default function AttendancePage() {
+  const { message } = App.useApp();
   const [classes, setClasses] = useState<Class[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [classId, setClassId] = useState('');
@@ -32,7 +33,6 @@ export default function AttendancePage() {
   const [entries, setEntries] = useState<Record<string, AttendanceEntry>>({});
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [success, setSuccess] = useState(false);
 
   useEffect(() => {
     api.get<{ data: { classes: Class[] } }>('/classes').then((res) => setClasses(res.data.data.classes));
@@ -57,12 +57,11 @@ export default function AttendancePage() {
 
   const handleSave = async () => {
     if (!classId || !date) return;
-    setSaving(true); setSuccess(false);
+    setSaving(true);
     try {
       await api.post('/attendance', { classId, sectionId, date, records: Object.values(entries) });
-      setSuccess(true);
-      setTimeout(() => setSuccess(false), 3000);
-    } catch (err) { console.error(err); }
+      message.success('Attendance saved successfully');
+    } catch (err) { console.error(err); message.error('Failed to save attendance'); }
     finally { setSaving(false); }
   };
 
@@ -129,10 +128,6 @@ export default function AttendancePage() {
           )}
         </Row>
       </Card>
-
-      {success && (
-        <Alert title="Attendance saved successfully!" type="success" showIcon style={{ marginBottom: 16, borderRadius: 8 }} closable />
-      )}
 
       {loading ? (
         <Card style={{ borderRadius: 10 }}>

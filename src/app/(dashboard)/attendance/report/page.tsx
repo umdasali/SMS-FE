@@ -202,7 +202,7 @@ export default function AttendanceReportPage() {
       {!classId && (
         <div style={{ textAlign: 'center', padding: '64px 0', color: '#8c8c8c' }}>
           <BarChartOutlined style={{ fontSize: 48, opacity: 0.3, display: 'block', marginBottom: 12 }} />
-          <Text type="secondary">Select a class and date range, then click "Generate Report".</Text>
+          <Text type="secondary">Select a class and date range, then click &quot;Generate Report&quot;.</Text>
         </div>
       )}
     </div>

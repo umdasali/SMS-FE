@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { Student, Class } from '@/types';
 import api from '@/lib/api';
 import {
-  Button, Input, Card, Tag, Avatar, Alert, Typography, Select, Tabs, Skeleton, Space,
+  Button, Input, Card, Tag, Avatar, Alert, Typography, Select, Tabs, Skeleton, Space, App,
 } from 'antd';
 import {
   ArrowLeftOutlined, EditOutlined, SaveOutlined, CloseOutlined,
@@ -84,6 +84,7 @@ const EMPTY_FORM: FormState = {
 
 
 export default function StudentProfilePage() {
+  const { message } = App.useApp();
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [student, setStudent] = useState<Student | null>(null);
@@ -176,6 +177,7 @@ export default function StudentProfilePage() {
       setEditing(false);
       setPhoto(null);
       setPhotoPreview('');
+      message.success('Student updated successfully');
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
       setError(msg || 'Failed to update student');

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -5,7 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { ThemeColor } from '@/types';
 import api from '@/lib/api';
-import { Button, Card, Input, Alert, Typography, Upload, Divider, Space } from 'antd';
+import { Button, Card, Input, Alert, Typography, Upload, Divider, Space, App } from 'antd';
 import {
   CheckCircleOutlined, BgColorsOutlined, UploadOutlined, DeleteOutlined, SaveOutlined,
   FileTextOutlined, SafetyCertificateOutlined,
@@ -153,6 +154,7 @@ function validateImage(file: File): string | null {
 }
 
 export default function BrandingPage() {
+  const { message } = App.useApp();
   const { tenant, refreshUser } = useAuth();
   const { setColor, color: currentColor } = useTheme();
   const [selectedColor, setSelectedColor] = useState<ThemeColor>(currentColor);
@@ -164,7 +166,6 @@ export default function BrandingPage() {
   const [logoError, setLogoError] = useState('');
   const [faviconError, setFaviconError] = useState('');
   const [saving, setSaving] = useState(false);
-  const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
   const [marksheetTemplate, setMarksheetTemplate] = useState<'standard' | 'modern' | 'minimal' | 'royal' | 'pearl'>('standard');
   const [certificateTemplate, setCertificateTemplate] = useState<'classic' | 'elegant' | 'modern' | 'royal' | 'pearl'>('classic');
@@ -209,7 +210,7 @@ export default function BrandingPage() {
   const removeFavicon = () => { setFavicon(null); setFaviconPreview(''); setFaviconError(''); };
 
   const handleSave = async () => {
-    setSaving(true); setError(''); setSuccess(false);
+    setSaving(true); setError('');
     try {
       const formData = new FormData();
       formData.append('primaryColor', selectedColor);
@@ -224,8 +225,7 @@ export default function BrandingPage() {
       await api.put('/tenants/my/branding', formData);
 
       await refreshUser();
-      setSuccess(true);
-      setTimeout(() => setSuccess(false), 4000);
+      message.success('Branding saved successfully');
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
       setError(msg || 'Failed to save branding. Please try again.');
@@ -243,16 +243,6 @@ export default function BrandingPage() {
         <Text type="secondary">Customize your institution&apos;s visual identity</Text>
       </div>
 
-      {success && (
-        <Alert
-          title="Branding updated successfully!"
-          type="success"
-          showIcon
-          closable
-          style={{ marginBottom: 16, borderRadius: 8 }}
-          onClose={() => setSuccess(false)}
-        />
-      )}
       {error && (
         <Alert
           title={error}

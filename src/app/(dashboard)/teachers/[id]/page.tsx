@@ -4,14 +4,14 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import api from '@/lib/api';
-import { Teacher } from '@/types';
+import { Teacher, Class, Subject } from '@/types';
 import {
-  Button, Input, Card, Tag, Avatar, Alert, Typography, Divider, Modal, Skeleton, Space, Select,
+  Button, Input, Card, Tag, Avatar, Alert, Typography, Divider, Modal, Skeleton, Space, Select, App,
 } from 'antd';
 import {
   ArrowLeftOutlined, EditOutlined, SaveOutlined, UserOutlined,
   MailOutlined, PhoneOutlined, CalendarOutlined, BookOutlined, DeleteOutlined, LockOutlined,
-  DollarOutlined, IdcardOutlined, SafetyOutlined,
+  DollarOutlined, IdcardOutlined, SafetyOutlined, TeamOutlined,
 } from '@ant-design/icons';
 import { Tabs } from 'antd';
 import { getInitials, formatDate } from '@/lib/utils';
@@ -21,6 +21,7 @@ import ResetPasswordModal from '@/components/modals/ResetPasswordModal';
 const { Title, Text } = Typography;
 
 export default function TeacherProfilePage() {
+  const { message } = App.useApp();
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [teacher, setTeacher] = useState<Teacher | null>(null);
@@ -36,10 +37,32 @@ export default function TeacherProfilePage() {
   const [passModal, setPassModal] = useState(false);
   const { user: currentUser } = useAuth();
 
+  // Assignment state
+  const [availableClasses, setAvailableClasses] = useState<Class[]>([]);
+  const [availableSubjects, setAvailableSubjects] = useState<Subject[]>([]);
+  const [selectedClassIds, setSelectedClassIds] = useState<string[]>([]);
+  const [selectedSubjectIds, setSelectedSubjectIds] = useState<string[]>([]);
+  const [savingAssignments, setSavingAssignments] = useState(false);
+  const [assignmentError, setAssignmentError] = useState('');
+
   useEffect(() => {
-    api.get<{ data: Teacher }>(`/teachers/${id}`)
-      .then((res) => { setTeacher(res.data.data); setForm(res.data.data); })
-      .finally(() => setLoading(false));
+    Promise.all([
+      api.get<{ data: Teacher }>(`/teachers/${id}`),
+      api.get<{ data: { classes: Class[] } }>('/classes'),
+      api.get<{ data: { subjects: Subject[] } }>('/subjects'),
+    ]).then(([tRes, cRes, sRes]) => {
+      const t = tRes.data.data;
+      setTeacher(t);
+      setForm(t);
+      setAvailableClasses(cRes.data.data.classes ?? []);
+      setAvailableSubjects(sRes.data.data.subjects ?? []);
+      setSelectedClassIds(
+        (t.classIds ?? []).map((c) => (typeof c === 'object' ? c._id : c))
+      );
+      setSelectedSubjectIds(
+        (t.subjectIds ?? []).map((s) => (typeof s === 'object' ? s._id : s))
+      );
+    }).finally(() => setLoading(false));
   }, [id]);
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -51,22 +74,55 @@ export default function TeacherProfilePage() {
     setSaving(true); setError('');
     try {
       const formData = new FormData();
-      const { _id, tenantId, userId, createdAt, ...rest } = form;
-      void _id; void tenantId; void userId; void createdAt;
+      const { _id, tenantId, userId, createdAt, classIds, subjectIds, ...rest } = form;
+      void _id; void tenantId; void userId; void createdAt; void classIds; void subjectIds;
+
       Object.entries(rest).forEach(([k, v]) => {
-        if (v !== undefined && v !== null && typeof v === 'string') formData.append(k, v);
+        if (v === undefined || v === null) return;
+        if (typeof v === 'string') formData.append(k, v);
         else if (typeof v === 'number') formData.append(k, String(v));
+        else if (Array.isArray(v)) {
+          v.forEach((item) => {
+            const val = typeof item === 'object' && item !== null ? (item as { _id: string })._id : String(item);
+            if (val) formData.append(k, val);
+          });
+        }
       });
+
       if (photo) formData.append('photo', photo);
       const res = await api.put<{ data: Teacher }>(`/teachers/${id}`, formData);
       setTeacher(res.data.data);
       setEditing(false);
       setPhoto(null);
       setPhotoPreview('');
+      message.success('Teacher updated successfully');
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
       setError(msg || 'Failed to update teacher');
     } finally { setSaving(false); }
+  };
+
+  const handleSaveAssignments = async () => {
+    setSavingAssignments(true); setAssignmentError('');
+    try {
+      // Send JSON so empty arrays are transmitted correctly (FormData cannot represent [])
+      const res = await api.put<{ data: Teacher }>(`/teachers/${id}`, {
+        classIds: selectedClassIds,
+        subjectIds: selectedSubjectIds,
+      });
+      const updated = res.data.data;
+      setTeacher((prev) => prev ? { ...prev, classIds: updated.classIds, subjectIds: updated.subjectIds } : prev);
+      setSelectedClassIds(
+        (updated.classIds ?? []).map((c) => (typeof c === 'object' ? c._id : c))
+      );
+      setSelectedSubjectIds(
+        (updated.subjectIds ?? []).map((s) => (typeof s === 'object' ? s._id : s))
+      );
+      message.success('Assignments saved successfully');
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setAssignmentError(msg || 'Failed to save assignments');
+    } finally { setSavingAssignments(false); }
   };
 
   if (loading) {
@@ -85,6 +141,13 @@ export default function TeacherProfilePage() {
 
   const setField = (field: keyof Teacher) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [field]: e.target.value }));
+
+  const assignedClassNames = (teacher.classIds ?? []).map((c) =>
+    typeof c === 'object' ? c.name : (availableClasses.find((ac) => ac._id === c)?.name ?? c)
+  );
+  const assignedSubjectNames = (teacher.subjectIds ?? []).map((s) =>
+    typeof s === 'object' ? s.name : (availableSubjects.find((as) => as._id === s)?.name ?? s)
+  );
 
   return (
     <div style={{ maxWidth: 860, margin: '0 auto' }}>
@@ -106,9 +169,9 @@ export default function TeacherProfilePage() {
         ) : (
           <Space>
             {(currentUser?.role === 'management' || currentUser?.role === 'saas_admin') && (
-              <Button 
-                icon={<LockOutlined />} 
-                onClick={() => setPassModal(true)} 
+              <Button
+                icon={<LockOutlined />}
+                onClick={() => setPassModal(true)}
                 style={{ borderRadius: 8 }}
               >
                 Reset Password
@@ -119,7 +182,7 @@ export default function TeacherProfilePage() {
         )}
       </div>
 
-      {error && <Alert title={error} type="error" showIcon style={{ marginBottom: 16, borderRadius: 8 }} />}
+      {error && <Alert message={error} type="error" showIcon style={{ marginBottom: 16, borderRadius: 8 }} />}
 
       <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: 16 }}>
         {/* Avatar Card */}
@@ -165,14 +228,29 @@ export default function TeacherProfilePage() {
               )}
             </div>
 
-            {teacher.subjectIds && teacher.subjectIds.length > 0 && (
+            {/* Classes */}
+            {assignedClassNames.length > 0 && (
+              <div style={{ width: '100%' }}>
+                <Text type="secondary" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
+                  <TeamOutlined /> Classes
+                </Text>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                  {assignedClassNames.map((name, i) => (
+                    <Tag key={i} color="blue" style={{ fontSize: 11 }}>{name}</Tag>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Subjects */}
+            {assignedSubjectNames.length > 0 && (
               <div style={{ width: '100%' }}>
                 <Text type="secondary" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
                   <BookOutlined /> Subjects
                 </Text>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                  {teacher.subjectIds.map((s) => (
-                    <Tag key={s._id} style={{ fontSize: 11 }}>{s.name}</Tag>
+                  {assignedSubjectNames.map((name, i) => (
+                    <Tag key={i} color="purple" style={{ fontSize: 11 }}>{name}</Tag>
                   ))}
                 </div>
               </div>
@@ -257,6 +335,69 @@ export default function TeacherProfilePage() {
                 )
               },
               {
+                key: 'assignments',
+                label: 'Assignments',
+                icon: <BookOutlined />,
+                children: (
+                  <div>
+                    {assignmentError && (
+                      <Alert message={assignmentError} type="error" showIcon style={{ marginBottom: 16, borderRadius: 8 }} />
+                    )}
+
+                    <div style={{ marginBottom: 20 }}>
+                      <Text style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                        <TeamOutlined style={{ marginRight: 6 }} />Assigned Classes
+                      </Text>
+                      <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>
+                        Select the classes this teacher is responsible for.
+                      </Text>
+                      <Select
+                        mode="multiple"
+                        style={{ width: '100%' }}
+                        placeholder="Select classes..."
+                        value={selectedClassIds}
+                        onChange={setSelectedClassIds}
+                        optionFilterProp="label"
+                        options={availableClasses.map((c) => ({ value: c._id, label: c.name }))}
+                      />
+                    </div>
+
+                    <Divider style={{ margin: '0 0 20px' }} />
+
+                    <div style={{ marginBottom: 20 }}>
+                      <Text style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                        <BookOutlined style={{ marginRight: 6 }} />Assigned Subjects
+                      </Text>
+                      <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>
+                        Select the subjects this teacher teaches.
+                      </Text>
+                      <Select
+                        mode="multiple"
+                        style={{ width: '100%' }}
+                        placeholder="Select subjects..."
+                        value={selectedSubjectIds}
+                        onChange={setSelectedSubjectIds}
+                        optionFilterProp="label"
+                        options={availableSubjects.map((s) => ({
+                          value: s._id,
+                          label: `${s.name}${typeof s.classId === 'object' && s.classId ? ` (${s.classId.name})` : ''}`,
+                        }))}
+                      />
+                    </div>
+
+                    <Button
+                      type="primary"
+                      icon={<SaveOutlined />}
+                      loading={savingAssignments}
+                      onClick={handleSaveAssignments}
+                      style={{ borderRadius: 8 }}
+                    >
+                      Save Assignments
+                    </Button>
+                  </div>
+                )
+              },
+              {
                 key: 'payroll',
                 label: 'Payroll',
                 icon: <DollarOutlined />,
@@ -264,7 +405,7 @@ export default function TeacherProfilePage() {
               }
             ]} />
           </Card>
-          
+
           <div style={{ marginTop: 16 }}>
             <Button danger icon={<DeleteOutlined />} size="small" onClick={() => setDeleteOpen(true)} style={{ borderRadius: 8 }}>
               Delete Teacher
@@ -288,11 +429,11 @@ export default function TeacherProfilePage() {
         This will permanently remove this teacher and all associated data. This action cannot be undone.
       </Modal>
 
-      <ResetPasswordModal 
-        open={passModal} 
-        onCancel={() => setPassModal(false)} 
-        userId={id} 
-        type="teachers" 
+      <ResetPasswordModal
+        open={passModal}
+        onCancel={() => setPassModal(false)}
+        userId={id}
+        type="teachers"
       />
     </div>
   );
@@ -302,7 +443,7 @@ const SM_PAY = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep
 const fmtPay = (n: number) => `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
 
 function TeacherPayrollView({ teacherId }: { teacherId: string }) {
-  const [slips, setSlips] = useState<any[]>([]);
+  const [slips, setSlips] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const { user } = useAuth();
@@ -311,7 +452,7 @@ function TeacherPayrollView({ teacherId }: { teacherId: string }) {
   const fetchSlips = () => {
     setLoading(true);
     api.get(`/finance/payslips?teacherId=${teacherId}`)
-      .then((res: any) => setSlips(res.data.data))
+      .then((res: { data: { data: Record<string, unknown>[] } }) => setSlips(res.data.data))
       .finally(() => setLoading(false));
   };
 
@@ -336,9 +477,9 @@ function TeacherPayrollView({ teacherId }: { teacherId: string }) {
     );
   }
 
-  const totalNet     = slips.reduce((s: number, p: any) => s + p.netSalary, 0);
-  const totalPaid    = slips.filter((p: any) => p.status === 'paid').reduce((s: number, p: any) => s + p.netSalary, 0);
-  const totalPending = slips.filter((p: any) => p.status === 'pending').reduce((s: number, p: any) => s + p.netSalary, 0);
+  const totalNet     = slips.reduce((s, p) => s + (p.netSalary as number), 0);
+  const totalPaid    = slips.filter((p) => p.status === 'paid').reduce((s, p) => s + (p.netSalary as number), 0);
+  const totalPending = slips.filter((p) => p.status === 'pending').reduce((s, p) => s + (p.netSalary as number), 0);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -360,15 +501,14 @@ function TeacherPayrollView({ teacherId }: { teacherId: string }) {
       </div>
 
       {/* Payslip list */}
-      {slips.map((slip: any) => {
+      {slips.map((slip) => {
         const isPaid = slip.status === 'paid';
         return (
-          <div key={slip._id} style={{
+          <div key={slip._id as string} style={{
             display: 'flex', alignItems: 'center', gap: 12,
             padding: '11px 14px', borderRadius: 10,
             border: '1px solid #e2e8f0', background: '#fff',
           }}>
-            {/* Month badge */}
             <div style={{
               width: 42, height: 42, borderRadius: 8, flexShrink: 0,
               background: isPaid ? '#f0fdf4' : '#fffbeb',
@@ -376,35 +516,32 @@ function TeacherPayrollView({ teacherId }: { teacherId: string }) {
               display: 'flex', flexDirection: 'column', alignItems: 'center',
               justifyContent: 'center', fontWeight: 700, lineHeight: 1.2,
             }}>
-              <span style={{ fontSize: 12 }}>{SM_PAY[slip.month]}</span>
+              <span style={{ fontSize: 12 }}>{SM_PAY[slip.month as number]}</span>
               <span style={{ fontSize: 10, fontWeight: 400 }}>{String(slip.year).slice(2)}</span>
             </div>
 
-            {/* Period + salary breakdown */}
             <div style={{ flex: 1 }}>
-              <Text strong style={{ fontSize: 13 }}>{SM_PAY[slip.month]} {slip.year}</Text>
+              <Text strong style={{ fontSize: 13 }}>{SM_PAY[slip.month as number]} {slip.year as number}</Text>
               <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }}>
-                Base {fmtPay(slip.baseSalary)}
-                {slip.allowances > 0 && <span style={{ color: '#16a34a' }}> +{fmtPay(slip.allowances)}</span>}
-                {slip.deductions > 0 && <span style={{ color: '#dc2626' }}> −{fmtPay(slip.deductions)}</span>}
+                Base {fmtPay(slip.baseSalary as number)}
+                {(slip.allowances as number) > 0 && <span style={{ color: '#16a34a' }}> +{fmtPay(slip.allowances as number)}</span>}
+                {(slip.deductions as number) > 0 && <span style={{ color: '#dc2626' }}> −{fmtPay(slip.deductions as number)}</span>}
               </div>
             </div>
 
-            {/* Net + payment date */}
             <div style={{ textAlign: 'right', marginRight: 8 }}>
-              <Text strong style={{ fontSize: 14 }}>{fmtPay(slip.netSalary)}</Text>
-              {slip.paymentDate && (
-                <div style={{ fontSize: 11, color: '#94a3b8' }}>{formatDate(slip.paymentDate)}</div>
+              <Text strong style={{ fontSize: 14 }}>{fmtPay(slip.netSalary as number)}</Text>
+              {Boolean(slip.paymentDate) && (
+                <div style={{ fontSize: 11, color: '#94a3b8' }}>{formatDate(String(slip.paymentDate))}</div>
               )}
             </div>
 
-            {/* Single-action button */}
             {isAdmin ? (
               isPaid ? (
                 <Button
                   size="small" danger ghost
                   loading={updatingId === slip._id}
-                  onClick={() => patch(slip._id, { status: 'pending' })}
+                  onClick={() => patch(slip._id as string, { status: 'pending' })}
                   style={{ fontSize: 12, minWidth: 60 }}
                 >
                   Undo
@@ -413,7 +550,7 @@ function TeacherPayrollView({ teacherId }: { teacherId: string }) {
                 <Button
                   size="small" type="primary" ghost
                   loading={updatingId === slip._id}
-                  onClick={() => patch(slip._id, { status: 'paid' })}
+                  onClick={() => patch(slip._id as string, { status: 'paid' })}
                   style={{ fontSize: 12, minWidth: 84 }}
                 >
                   Mark Paid

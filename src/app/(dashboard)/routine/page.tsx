@@ -5,9 +5,8 @@ import dayjs, { Dayjs } from 'dayjs';
 import api from '@/lib/api';
 import { Class, Subject, Routine, DaySchedule } from '@/types';
 import {
-  Button, Card, Select, Tag, Typography, Alert, Spin, Space, Tooltip, Empty, Row, Col, Form,
+  Button, Card, Select, Tag, Typography, Alert, Spin, Space, Tooltip, Empty, Row, Col, Form, App, TimePicker,
 } from 'antd';
-import { TimePicker } from 'antd';
 import {
   CalendarOutlined, PlusOutlined, SaveOutlined, DeleteOutlined, ReloadOutlined,
 } from '@ant-design/icons';
@@ -50,6 +49,7 @@ function toDayjs(t: string): Dayjs | null {
 }
 
 export default function RoutinePage() {
+  const { message } = App.useApp();
   const [classes, setClasses] = useState<Class[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [classId, setClassId] = useState('');
@@ -189,6 +189,7 @@ export default function RoutinePage() {
       }
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
+      message.success('Routine saved successfully');
     } catch (err) {
       console.error('handleSave error:', err);
       setError('Failed to save routine. Please try again.');
@@ -251,16 +252,6 @@ export default function RoutinePage() {
       `}</style>
 
       {/* Alerts */}
-      {saved && (
-        <Alert
-          title="Routine saved successfully!"
-          type="success"
-          showIcon
-          closable
-          style={{ marginBottom: 16, borderRadius: 8 }}
-          onClose={() => setSaved(false)}
-        />
-      )}
       {error && (
         <Alert
           title={error}
@@ -474,7 +465,7 @@ export default function RoutinePage() {
                         </Tooltip>
                       </div>
 
-                      <style jsx>{`
+                      <style>{`
                         .routine-period-row {
                           display: flex;
                           gap: 12px;

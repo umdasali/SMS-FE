@@ -8,13 +8,14 @@ import api from '@/lib/api';
 import { Exam, Student, Subject, Mark } from '@/types';
 import {
   Button, Card, Alert, Typography, Skeleton, InputNumber, Tag, Space,
-  Drawer, Divider, Statistic, Row, Col, Tooltip, Badge, Popconfirm,
+  Drawer, Statistic, Row, Col, Tooltip, Badge, Popconfirm, App,
 } from 'antd';
 import {
   ArrowLeftOutlined, SaveOutlined, FilePdfOutlined, FileTextOutlined,
   CheckCircleOutlined, CloseCircleOutlined, DownloadOutlined, DeleteOutlined,
 } from '@ant-design/icons';
 import { useAuth } from '@/context/AuthContext';
+import { Teacher } from '@/types';
 
 const MarksheetPDF = dynamic(() => import('@/components/pdf/MarksheetPDF'), { ssr: false });
 
@@ -50,17 +51,19 @@ function gradeColor(g: string) {
 }
 
 export default function MarksEntryPage() {
+  const { message } = App.useApp();
   const { examId } = useParams<{ examId: string }>();
-  const { tenant } = useAuth();
+  const { tenant, user } = useAuth();
+  const isTeacher = user?.role === 'teacher';
 
   const [exam, setExam] = useState<Exam | null>(null);
   const [students, setStudents] = useState<Student[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [assignedSubjectIds, setAssignedSubjectIds] = useState<Set<string> | null>(null);
   // marks[studentId][subjectId] = obtained score
   const [marks, setMarks] = useState<Record<string, Record<string, number>>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Marksheet drawer
@@ -68,6 +71,10 @@ export default function MarksEntryPage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   useEffect(() => {
+    const teacherFetch = isTeacher
+      ? api.get<{ data: Teacher }>('/teachers/me').catch(() => ({ data: { data: null } }))
+      : Promise.resolve({ data: { data: null } });
+
     api.get<{ data: { exams: Exam[] } }>(`/exams?_id=${examId}`)
       .then(async (res) => {
         const e = res.data?.data?.exams?.[0];
@@ -75,12 +82,20 @@ export default function MarksEntryPage() {
         setExam(e);
         const classId = typeof e.classId === 'object' ? e.classId?._id : e.classId;
 
-        const [sRes, subRes, marksRes] = await Promise.all([
+        const [sRes, subRes, marksRes, teacherRes] = await Promise.all([
           api.get<{ data: { students: Student[] } }>(`/students?classId=${classId}&limit=200`),
           api.get<{ data: { subjects: Subject[] } }>(`/subjects?classId=${classId}`),
-          // Fetch existing saved marks for this exam
           api.get<{ data: Mark[] }>(`/exams/marks?examId=${examId}`).catch(() => ({ data: { data: [] } })),
+          teacherFetch,
         ]);
+
+        if (isTeacher && teacherRes.data.data) {
+          const teacher = teacherRes.data.data as Teacher;
+          const ids = new Set(
+            (teacher.subjectIds ?? []).map((s) => (typeof s === 'object' ? s._id : s))
+          );
+          setAssignedSubjectIds(ids);
+        }
 
         const studentList: Student[] = sRes.data?.data?.students ?? [];
         const subjectList: Subject[] = subRes.data?.data?.subjects ?? [];
@@ -108,11 +123,14 @@ export default function MarksEntryPage() {
       })
       .catch(() => setError('Failed to load exam data.'))
       .finally(() => setLoading(false));
-  }, [examId]);
+  }, [examId, isTeacher]);
 
   const setMark = (studentId: string, subjectId: string, val: number) => {
     setMarks((prev) => ({ ...prev, [studentId]: { ...prev[studentId], [subjectId]: val } }));
   };
+
+  const isSubjectAssigned = (subjectId: string) =>
+    !assignedSubjectIds || assignedSubjectIds.has(subjectId);
 
   const handleSave = async () => {
     setSaving(true);
@@ -121,13 +139,13 @@ export default function MarksEntryPage() {
       const entries: MarkEntry[] = [];
       students.forEach((s) => {
         subjects.forEach((sub) => {
+          if (!isSubjectAssigned(sub._id)) return;
           const obtained = marks[s._id]?.[sub._id] ?? 0;
           entries.push({ studentId: s._id, subjectId: sub._id, obtained, total: sub.fullMarks });
         });
       });
       await api.post('/exams/marks/bulk', { examId, marks: entries });
-      setSuccess(true);
-      setTimeout(() => setSuccess(false), 4000);
+      message.success('Marks saved successfully');
     } catch {
       setError('Failed to save marks. Please try again.');
     } finally {
@@ -212,16 +230,6 @@ export default function MarksEntryPage() {
       </div>
 
       {/* Alerts */}
-      {success && (
-        <Alert
-          title="Marks saved successfully!"
-          type="success"
-          showIcon
-          closable
-          style={{ marginBottom: 16, borderRadius: 8 }}
-          onClose={() => setSuccess(false)}
-        />
-      )}
       {error && (
         <Alert
           title={error}
@@ -317,7 +325,7 @@ export default function MarksEntryPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {studentSummaries.map(({ student: s, obtained, total, pct, grade, passed }) => (
+                  {studentSummaries.map(({ student: s, obtained, total, pct, grade }) => (
                     <tr
                       key={s._id}
                       style={{ borderBottom: '1px solid #f0f0f0' }}
@@ -339,7 +347,8 @@ export default function MarksEntryPage() {
                             max={sub.fullMarks}
                             value={marks[s._id]?.[sub._id] ?? 0}
                             onChange={(val) => setMark(s._id, sub._id, val ?? 0)}
-                            style={{ width: 80 }}
+                            disabled={!isSubjectAssigned(sub._id)}
+                            style={{ width: 80, opacity: isSubjectAssigned(sub._id) ? 1 : 0.4 }}
                             size="small"
                           />
                         </td>

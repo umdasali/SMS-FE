@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Teacher } from '@/types';
 import api from '@/lib/api';
 import { DataTable } from '@/components/tables/DataTable';
-import { Button, Avatar, Tag, Typography, Space, Modal, Dropdown } from 'antd';
+import { Button, Avatar, Tag, Typography, Space, Modal, Dropdown, App } from 'antd';
 import {
   UserAddOutlined, EyeOutlined, DeleteOutlined, MoreOutlined, UserOutlined,
 } from '@ant-design/icons';
@@ -17,6 +17,7 @@ const { Text } = Typography;
 
 export default function TeachersPage() {
   const router = useRouter();
+  const { message } = App.useApp();
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -65,6 +66,7 @@ export default function TeachersPage() {
     try {
       await api.delete(`/teachers/${deleteId}`);
       fetchTeachers(page, limit, search);
+      message.success('Teacher deleted successfully');
     } finally {
       setDeleting(false);
       setDeleteId(null);

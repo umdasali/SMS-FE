@@ -3,12 +3,13 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import api from '@/lib/api';
-import { Exam, Class } from '@/types';
+import { Exam, Class, Teacher } from '@/types';
 import { DataTable } from '@/components/tables/DataTable';
 import { Button, Tag, Form, Modal, Input, Select, Typography, Space, Popconfirm, App } from 'antd';
 import { FileTextOutlined, PlusOutlined, ReadOutlined, CalendarOutlined, DeleteOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { formatDate } from '@/lib/utils';
+import { useAuth } from '@/context/AuthContext';
 
 const { Title, Text } = Typography;
 
@@ -22,6 +23,9 @@ const typeLabel: Record<string, string> = {
 };
 
 export default function ExamsPage() {
+  const { user } = useAuth();
+  const isTeacher = user?.role === 'teacher';
+
   const [exams, setExams] = useState<Exam[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,7 +56,22 @@ export default function ExamsPage() {
 
   useEffect(() => {
     fetchExams(page, limit, search);
-    api.get<{ data: { classes: Class[] } }>('/classes').then((res) => setClasses(res.data.data.classes)).catch(() => {});
+    if (isTeacher) {
+      // Fetch teacher profile to get assigned classIds, then filter classes list
+      api.get<{ data: Teacher }>('/teachers/me').then((res) => {
+        const teacher = res.data.data;
+        if (teacher?.classIds) {
+          const assignedIds = new Set(teacher.classIds.map((c) => (typeof c === 'object' ? c._id : c)));
+          api.get<{ data: { classes: Class[] } }>('/classes').then((cr) => {
+            setClasses(cr.data.data.classes.filter((c) => assignedIds.has(c._id)));
+          }).catch(() => {});
+        }
+      }).catch(() => {
+        api.get<{ data: { classes: Class[] } }>('/classes').then((res) => setClasses(res.data.data.classes)).catch(() => {});
+      });
+    } else {
+      api.get<{ data: { classes: Class[] } }>('/classes').then((res) => setClasses(res.data.data.classes)).catch(() => {});
+    }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleTableChange = (newPage: number, newPageSize: number) => {
@@ -81,7 +100,8 @@ export default function ExamsPage() {
       form.resetFields();
       form.setFieldsValue({ type: 'mid', academicYear: new Date().getFullYear().toString() });
       fetchExams(page, limit, search);
-    } catch (err) { console.error(err); }
+      message.success('Exam created successfully');
+    } catch (err) { console.error(err); message.error('Failed to create exam'); }
     finally { setSaving(false); }
   };
 
@@ -148,17 +168,19 @@ export default function ExamsPage() {
           <Link href={`/exams/${e._id}/marks`}>
             <Button size="small" style={{ borderRadius: 6 }}>Enter Marks</Button>
           </Link>
-          <Popconfirm
-            title="Delete Exam"
-            description="Are you sure you want to delete this exam? All associated marks will be lost."
-            onConfirm={() => handleDelete(e._id)}
-            okText="Yes"
-            cancelText="No"
-          >
-            <Button type="text" danger icon={<DeleteOutlined />} size="small">
-              Delete
-            </Button>
-          </Popconfirm>
+          {!isTeacher && (
+            <Popconfirm
+              title="Delete Exam"
+              description="Are you sure you want to delete this exam? All associated marks will be lost."
+              onConfirm={() => handleDelete(e._id)}
+              okText="Yes"
+              cancelText="No"
+            >
+              <Button type="text" danger icon={<DeleteOutlined />} size="small">
+                Delete
+              </Button>
+            </Popconfirm>
+          )}
         </Space>
       ),
     },
@@ -171,9 +193,11 @@ export default function ExamsPage() {
           <Title level={3} style={{ margin: 0 }}>Exams</Title>
           <Text type="secondary">{total} exam{total !== 1 ? 's' : ''} configured</Text>
         </div>
-        <Button type="primary" icon={<PlusOutlined />} size="medium" style={{ borderRadius: 8 }} onClick={() => setOpen(true)}>
-          Create Exam
-        </Button>
+        {!isTeacher && (
+          <Button type="primary" icon={<PlusOutlined />} size="medium" style={{ borderRadius: 8 }} onClick={() => setOpen(true)}>
+            Create Exam
+          </Button>
+        )}
       </div>
 
       <DataTable 

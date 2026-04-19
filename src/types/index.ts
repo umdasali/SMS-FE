@@ -23,7 +23,14 @@ export interface Tenant {
   schoolCode: string;
   status: 'active' | 'inactive' | 'pending';
   branding: Branding;
-  subscription: { plan: string; expiresAt: string };
+  subscription: {
+    plan: 'free' | 'basic' | 'pro' | 'enterprise';
+    status: 'active' | 'suspended' | 'expired';
+    expiresAt: string;
+    pricePerStudent: number;
+    lastPaymentDate?: string;
+    notes?: string;
+  };
   createdAt: string;
   updatedAt: string;
 }
