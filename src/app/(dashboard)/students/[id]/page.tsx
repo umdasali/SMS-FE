@@ -7,11 +7,12 @@ import Link from 'next/link';
 import { Student, Class } from '@/types';
 import api from '@/lib/api';
 import {
-  Button, Input, Card, Tag, Avatar, Alert, Typography, Select, Tabs, Skeleton, Space, App,
+  Button, Input, Card, Tag, Avatar, Alert, Typography, Select, Tabs, Skeleton, Space, App, Dropdown,
 } from 'antd';
 import {
   ArrowLeftOutlined, EditOutlined, SaveOutlined, CloseOutlined,
   FileTextOutlined, SafetyCertificateOutlined, UserOutlined, LockOutlined,
+  StopOutlined, CheckCircleOutlined, TrophyOutlined, SwapOutlined,
 } from '@ant-design/icons';
 import { formatDate, getInitials, flattenObject } from '@/lib/utils';
 
@@ -97,7 +98,22 @@ export default function StudentProfilePage() {
   const [photoPreview, setPhotoPreview] = useState('');
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [passModal, setPassModal] = useState(false);
+  const [statusChanging, setStatusChanging] = useState(false);
   const [tenant, setTenant] = useState<Tenant | null>(null);
+
+  const handleStatusChange = async (status: string) => {
+    setStatusChanging(true);
+    try {
+      const res = await api.patch<{ data: Student }>(`/students/${id}/status`, { status });
+      setStudent(res.data.data);
+      populateForm(res.data.data);
+      message.success(`Student marked as ${status}`);
+    } catch {
+      message.error('Failed to update student status');
+    } finally {
+      setStatusChanging(false);
+    }
+  };
   const [resolvedLogo, setResolvedLogo] = useState<string>(DEFAULT_LOGO);
   const { user: currentUser } = useAuth();
 
@@ -357,6 +373,26 @@ export default function StudentProfilePage() {
               </Link>
               {(currentUser?.role === 'management' || currentUser?.role === 'saas_admin') && (
                 <>
+                  <Dropdown
+                    menu={{
+                      items: [
+                        ...(student.status !== 'active' ? [{ key: 'activate', label: 'Activate', icon: <CheckCircleOutlined />, onClick: () => handleStatusChange('active') }] : []),
+                        ...(student.status === 'active' ? [{ key: 'deactivate', label: 'Deactivate', icon: <StopOutlined />, onClick: () => handleStatusChange('inactive') }] : []),
+                        ...(student.status !== 'graduated' ? [{ key: 'graduate', label: 'Mark as Graduated', icon: <TrophyOutlined />, onClick: () => handleStatusChange('graduated') }] : []),
+                        ...(student.status !== 'transferred' ? [{ key: 'transfer', label: 'Mark as Transferred', icon: <SwapOutlined />, onClick: () => handleStatusChange('transferred') }] : []),
+                      ],
+                    }}
+                    trigger={['click']}
+                  >
+                    <Button
+                      size="small"
+                      loading={statusChanging}
+                      icon={student.status === 'active' ? <CheckCircleOutlined /> : <StopOutlined />}
+                      style={{ borderRadius: 8 }}
+                    >
+                      Status
+                    </Button>
+                  </Dropdown>
                   <PDFDownloadButton
                     document={<AdmissionSlipPDF student={student} tenant={tenant} resolvedLogo={resolvedLogo} credentials={{ username: student.admissionNo }} />}
                     fileName={`admission-slip-${student.admissionNo}.pdf`}

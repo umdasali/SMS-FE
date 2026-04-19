@@ -1,15 +1,15 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { Student, Mark, Exam, Subject } from '@/types';
 import api from '@/lib/api';
-import { Button, Card, Tag, Select, Typography, Skeleton, Tabs } from 'antd';
-import { ArrowLeftOutlined, DownloadOutlined, FileTextOutlined } from '@ant-design/icons';
+import { Button, Card, Tag, Select, Typography, Skeleton, Drawer, Space } from 'antd';
+import { ArrowLeftOutlined, FileTextOutlined, FilePdfOutlined } from '@ant-design/icons';
 import { useAuth } from '@/context/AuthContext';
-import { formatDate, getGradeColor } from '@/lib/utils';
+import { formatDate, getGradeColor, resolveGrade } from '@/lib/utils';
 
 const MarksheetPDF = dynamic(() => import('@/components/pdf/MarksheetPDF'), { ssr: false });
 
@@ -26,21 +26,41 @@ interface GroupedMarks {
 
 export default function MarksheetPage() {
   const { studentId } = useParams<{ studentId: string }>();
-  const { tenant } = useAuth();
+  const { tenant, user } = useAuth();
+  const router = useRouter();
   const [student, setStudent] = useState<Student | null>(null);
   const [groupedMarks, setGroupedMarks] = useState<GroupedMarks[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedExam, setSelectedExam] = useState('all');
-  const [showPDF, setShowPDF] = useState(false);
+  const [forbidden, setForbidden] = useState(false);
+  const [fetchError, setFetchError] = useState(false);
+  const [selectedYear, setSelectedYear] = useState('all');
+
+  // PDF drawer — holds the groups for the currently-selected exam download
+  const [pdfGroups, setPdfGroups] = useState<GroupedMarks[] | null>(null);
+  const [pdfTitle, setPdfTitle] = useState('');
+
+  const openPdf = (groups: GroupedMarks[], title: string) => {
+    setPdfGroups(groups);
+    setPdfTitle(title);
+  };
+  const closePdf = () => setPdfGroups(null);
+
+  // Students must use their own portal
+  useEffect(() => {
+    if (user?.role === 'student') router.replace('/portal/marksheet');
+  }, [user, router]);
 
   useEffect(() => {
+    if (user === null) return;
+    if (user.role === 'student') return;
+
     Promise.all([
       api.get<{ data: Student }>(`/students/${studentId}`),
       api.get<{ data: { byExam: Record<string, Mark[]> } }>(`/exams/marks/student/${studentId}`),
     ])
       .then(([sRes, mRes]) => {
         setStudent(sRes.data.data);
-        const { byExam } = mRes.data.data;
+        const byExam: Record<string, Mark[]> = mRes.data.data?.byExam ?? {};
         const groups: GroupedMarks[] = Object.entries(byExam).map(([, examMarks]) => {
           const examData = examMarks[0]?.examId as Exam;
           const total = examMarks.reduce((s, m) => s + m.total, 0);
@@ -58,8 +78,12 @@ export default function MarksheetPage() {
         });
         setGroupedMarks(groups);
       })
+      .catch((err) => {
+        if (err?.response?.status === 403) setForbidden(true);
+        else setFetchError(true);
+      })
       .finally(() => setLoading(false));
-  }, [studentId]);
+  }, [studentId, user]);
 
   if (loading) {
     return (
@@ -71,16 +95,37 @@ export default function MarksheetPage() {
     );
   }
 
+  if (forbidden) return (
+    <div style={{ textAlign: 'center', padding: 48, color: '#8c8c8c' }}>
+      You don&apos;t have permission to view this student&apos;s marksheet.
+    </div>
+  );
+
+  if (fetchError) return (
+    <div style={{ textAlign: 'center', padding: 48, color: '#8c8c8c' }}>
+      Failed to load marksheet data. Please try refreshing the page.
+    </div>
+  );
+
   if (!student) return <div style={{ textAlign: 'center', padding: 48, color: '#8c8c8c' }}>Student not found.</div>;
 
-  const filteredGroups = selectedExam === 'all'
-    ? groupedMarks
-    : groupedMarks.filter((g) => g.exam?._id === selectedExam);
+  const academicYears = [...new Set(groupedMarks.map((g) => g.exam?.academicYear).filter(Boolean))].sort().reverse();
 
-  const cls = typeof student.classId === 'object' ? student.classId : null;
+  const filteredGroups = selectedYear === 'all'
+    ? groupedMarks
+    : groupedMarks.filter((g) => g.exam?.academicYear === selectedYear);
+
+  const groupedByYear: Record<string, GroupedMarks[]> = {};
+  filteredGroups.forEach((g) => {
+    const yr = g.exam?.academicYear || 'Unknown';
+    if (!groupedByYear[yr]) groupedByYear[yr] = [];
+    groupedByYear[yr].push(g);
+  });
+  const sortedYears = Object.keys(groupedByYear).sort().reverse();
 
   return (
     <div style={{ maxWidth: 860, margin: '0 auto' }}>
+      {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
         <Link href="/students"><Button icon={<ArrowLeftOutlined />} type="text" /></Link>
         <div style={{ flex: 1 }}>
@@ -89,115 +134,164 @@ export default function MarksheetPage() {
           </Title>
           <Text type="secondary">{student.name} — {student.admissionNo}</Text>
         </div>
-        <Button type="primary" icon={<DownloadOutlined />} onClick={() => setShowPDF(!showPDF)}>
-          {showPDF ? 'Hide PDF' : 'Download PDF'}
-        </Button>
       </div>
 
-      {groupedMarks.length > 1 && (
+      {/* Year filter */}
+      {academicYears.length > 1 && (
         <div style={{ marginBottom: 16 }}>
           <Select
-            value={selectedExam}
-            onChange={(v) => setSelectedExam(v ?? 'all')}
+            value={selectedYear}
+            onChange={(v) => setSelectedYear(v ?? 'all')}
             style={{ width: 220 }}
             options={[
-              { value: 'all', label: 'All Exams' },
-              ...groupedMarks.map((g) => ({ value: g.exam?._id, label: g.exam?.name })),
+              { value: 'all', label: 'All Academic Years' },
+              ...academicYears.map((yr) => ({ value: yr, label: yr })),
             ]}
           />
         </div>
       )}
 
-      {showPDF && student && (
-        <div style={{ borderRadius: 10, overflow: 'hidden', border: '1px solid #f0f0f0', marginBottom: 16 }}>
-          <MarksheetPDF student={student} groupedMarks={filteredGroups} tenant={tenant} />
-        </div>
-      )}
-
+      {/* Empty state */}
       {filteredGroups.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: 48, color: '#8c8c8c' }}>No marks found for this student.</div>
+        <Card style={{ borderRadius: 10, textAlign: 'center', padding: '32px 24px' }}>
+          <FileTextOutlined style={{ fontSize: 40, color: '#d9d9d9', marginBottom: 12 }} />
+          <div style={{ color: '#595959', fontWeight: 500, marginBottom: 4 }}>No marks recorded yet</div>
+          <Text type="secondary" style={{ fontSize: 13 }}>
+            Marks for this student haven&apos;t been entered. Go to an exam and use the marks entry page to record them.
+          </Text>
+        </Card>
       ) : (
-        <Tabs
-          defaultActiveKey="detailed"
-          items={[
-            {
-              key: 'detailed',
-              label: 'Detailed View',
-              children: (
-                <>
-                  {filteredGroups.map((group) => (
-                    <Card key={group.exam?._id} style={{ borderRadius: 10, marginBottom: 16 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                        <div>
-                          <Text strong style={{ fontSize: 15 }}>{group.exam?.name}</Text>
-                          <Text type="secondary" style={{ display: 'block', fontSize: 13, textTransform: 'capitalize' }}>
-                            {group.exam?.type} · {group.exam?.academicYear}
-                          </Text>
-                        </div>
-                        <div style={{ textAlign: 'right' }}>
-                          <div style={{ fontSize: 28, fontWeight: 700 }}>{group.percentage}%</div>
-                          <Tag style={{ fontWeight: 700, color: getGradeColor(group.grade) }}>Grade: {group.grade}</Tag>
-                        </div>
+        <>
+          {sortedYears.map((yr) => (
+            <div key={yr}>
+              {/* Year divider */}
+              {(() => {
+                const cls = groupedByYear[yr][0]?.exam?.classId;
+                const className = typeof cls === 'object' && cls ? (cls as { name: string }).name : null;
+                return (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '20px 0 12px' }}>
+                    <div style={{ height: 1, flex: 1, background: '#f0f0f0' }} />
+                    <Text type="secondary" style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, whiteSpace: 'nowrap' }}>
+                      {className ? `${className} · ` : ''}Academic Year {yr}
+                    </Text>
+                    <div style={{ height: 1, flex: 1, background: '#f0f0f0' }} />
+                  </div>
+                );
+              })()}
+
+              {groupedByYear[yr].map((group) => (
+                <Card key={group.exam?._id} style={{ borderRadius: 10, marginBottom: 16 }}>
+                  {/* Exam header row */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                    <div>
+                      <Text strong style={{ fontSize: 15 }}>{group.exam?.name}</Text>
+                      <Text type="secondary" style={{ display: 'block', fontSize: 13, textTransform: 'capitalize' }}>
+                        {group.exam?.type}{group.exam?.term ? ` · ${group.exam.term}` : ''}
+                        {(() => {
+                          const cls = group.exam?.classId;
+                          const name = typeof cls === 'object' && cls ? (cls as { name: string }).name : null;
+                          return name ? ` · ${name}` : '';
+                        })()}
+                      </Text>
+                    </div>
+                    <Space align="center">
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: 28, fontWeight: 700 }}>{group.percentage}%</div>
+                        <Tag style={{ fontWeight: 700, color: getGradeColor(group.grade) }}>Grade: {group.grade}</Tag>
                       </div>
-                      <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
-                          <thead>
-                            <tr style={{ background: '#fafafa', borderBottom: '1px solid #f0f0f0' }}>
-                              <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 600 }}>Subject</th>
-                              <th style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 600 }}>Full Marks</th>
-                              <th style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 600 }}>Pass Marks</th>
-                              <th style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 600 }}>Obtained</th>
-                              <th style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 600 }}>Grade</th>
-                              <th style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 600 }}>Result</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {group.marks.map((mark) => {
-                              const subject = mark.subjectId as Subject;
-                              const passed = mark.obtained >= (subject?.passMarks || 33);
-                              return (
-                                <tr key={mark._id} style={{ borderBottom: '1px solid #f0f0f0' }}>
-                                  <td style={{ padding: '8px 10px', fontWeight: 500 }}>
-                                    {typeof subject === 'object' ? subject.name : '—'}
-                                    {typeof subject === 'object' && <Text type="secondary" style={{ fontSize: 11, marginLeft: 6 }}>({subject.code})</Text>}
-                                  </td>
-                                  <td style={{ padding: '8px 10px', textAlign: 'center' }}>{mark.total}</td>
-                                  <td style={{ padding: '8px 10px', textAlign: 'center', color: '#8c8c8c' }}>
-                                    {typeof subject === 'object' ? subject.passMarks : 33}
-                                  </td>
-                                  <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 600 }}>{mark.obtained}</td>
-                                  <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 700, color: getGradeColor(mark.grade) }}>{mark.grade}</td>
-                                  <td style={{ padding: '8px 10px', textAlign: 'center' }}>
-                                    <Tag color={passed ? 'success' : 'error'}>{passed ? 'Pass' : 'Fail'}</Tag>
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                          <tfoot>
-                            <tr style={{ borderTop: '2px solid #d9d9d9', background: '#fafafa', fontWeight: 600 }}>
-                              <td style={{ padding: '8px 10px' }}>Total</td>
-                              <td style={{ padding: '8px 10px', textAlign: 'center' }}>{group.total}</td>
-                              <td style={{ padding: '8px 10px' }} />
-                              <td style={{ padding: '8px 10px', textAlign: 'center' }}>{group.obtained}</td>
-                              <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 700, fontSize: 16, color: getGradeColor(group.grade) }}>{group.grade}</td>
+                      <Button
+                        icon={<FilePdfOutlined />}
+                        size="small"
+                        style={{ borderRadius: 8 }}
+                        onClick={() => openPdf([group], group.exam?.name ?? 'Marksheet')}
+                      >
+                        Download
+                      </Button>
+                    </Space>
+                  </div>
+
+                  {/* Marks table */}
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ background: '#fafafa', borderBottom: '1px solid #f0f0f0' }}>
+                          <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 600 }}>Subject</th>
+                          <th style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 600 }}>Full Marks</th>
+                          <th style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 600 }}>Pass Marks</th>
+                          <th style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 600 }}>Obtained</th>
+                          <th style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 600 }}>Grade</th>
+                          <th style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 600 }}>Result</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {group.marks.map((mark) => {
+                          const subject = mark.subjectId as Subject;
+                          const passed = mark.obtained >= (subject?.passMarks || 33);
+                          return (
+                            <tr key={mark._id} style={{ borderBottom: '1px solid #f0f0f0' }}>
+                              <td style={{ padding: '8px 10px', fontWeight: 500 }}>
+                                {typeof subject === 'object' ? subject.name : '—'}
+                                {typeof subject === 'object' && (
+                                  <Text type="secondary" style={{ fontSize: 11, marginLeft: 6 }}>({subject.code})</Text>
+                                )}
+                              </td>
+                              <td style={{ padding: '8px 10px', textAlign: 'center' }}>{mark.total}</td>
+                              <td style={{ padding: '8px 10px', textAlign: 'center', color: '#8c8c8c' }}>
+                                {typeof subject === 'object' ? subject.passMarks : 33}
+                              </td>
+                              <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 600 }}>{mark.obtained}</td>
+                              <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 700, color: getGradeColor(resolveGrade(mark)) }}>
+                                {resolveGrade(mark)}
+                              </td>
                               <td style={{ padding: '8px 10px', textAlign: 'center' }}>
-                                <Tag color={group.percentage >= 33 ? 'success' : 'error'} style={{ fontWeight: 700 }}>
-                                  {group.percentage >= 33 ? 'PASS' : 'FAIL'}
-                                </Tag>
+                                <Tag color={passed ? 'success' : 'error'}>{passed ? 'Pass' : 'Fail'}</Tag>
                               </td>
                             </tr>
-                          </tfoot>
-                        </table>
-                      </div>
-                    </Card>
-                  ))}
-                </>
-              )
-            },
-          ]}
-        />
+                          );
+                        })}
+                      </tbody>
+                      <tfoot>
+                        <tr style={{ borderTop: '2px solid #d9d9d9', background: '#fafafa', fontWeight: 600 }}>
+                          <td style={{ padding: '8px 10px' }}>Total</td>
+                          <td style={{ padding: '8px 10px', textAlign: 'center' }}>{group.total}</td>
+                          <td style={{ padding: '8px 10px' }} />
+                          <td style={{ padding: '8px 10px', textAlign: 'center' }}>{group.obtained}</td>
+                          <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 700, fontSize: 16, color: getGradeColor(group.grade) }}>
+                            {group.grade}
+                          </td>
+                          <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                            <Tag color={group.percentage >= 33 ? 'success' : 'error'} style={{ fontWeight: 700 }}>
+                              {group.percentage >= 33 ? 'PASS' : 'FAIL'}
+                            </Tag>
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          ))}
+        </>
       )}
+
+      {/* PDF Drawer — shared by per-exam and Download All */}
+      <Drawer
+        title={
+          <Space>
+            <FilePdfOutlined />
+            <span>{student.name} — {pdfTitle}</span>
+          </Space>
+        }
+        open={!!pdfGroups}
+        onClose={closePdf}
+        size="large"
+        styles={{ body: { padding: 0 } }}
+      >
+        {pdfGroups && student && (
+          <MarksheetPDF student={student} groupedMarks={pdfGroups} tenant={tenant} />
+        )}
+      </Drawer>
     </div>
   );
 }

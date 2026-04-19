@@ -20,6 +20,22 @@ export const getInitials = (name: string): string => {
     .toUpperCase();
 };
 
+export const calcGrade = (obtained: number, total: number): string => {
+  if (total <= 0) return 'F';
+  const pct = (obtained / total) * 100;
+  if (pct >= 90) return 'A+';
+  if (pct >= 80) return 'A';
+  if (pct >= 70) return 'B+';
+  if (pct >= 60) return 'B';
+  if (pct >= 50) return 'C+';
+  if (pct >= 40) return 'C';
+  if (pct >= 33) return 'D';
+  return 'F';
+};
+
+export const resolveGrade = (mark: { grade?: string; obtained: number; total: number }): string =>
+  mark.grade || calcGrade(mark.obtained, mark.total);
+
 export const getGradeColor = (grade: string): string => {
   const colors: Record<string, string> = {
     'A+': '#16a34a', A: '#22c55e',

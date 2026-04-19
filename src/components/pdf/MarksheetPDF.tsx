@@ -157,7 +157,9 @@ const s1 = StyleSheet.create({
 });
 
 function StandardMarksheet({ student, groupedMarks, primaryColor, schoolName, logoUrl, tenant }: MarksheetComponentProps) {
-  const cls = typeof student.classId === 'object' ? student.classId : null;
+  const examClass = groupedMarks[0]?.exam?.classId;
+  const cls = (typeof examClass === 'object' && examClass ? examClass : null)
+    ?? (typeof student.classId === 'object' ? student.classId : null);
   const totalObtained = groupedMarks.reduce((s: number, g: GroupedMarks) => s + g.obtained, 0);
   const totalMax = groupedMarks.reduce((s: number, g: GroupedMarks) => s + g.total, 0);
   const overallPct = totalMax > 0 ? Math.round((totalObtained / totalMax) * 100) : 0;
@@ -432,7 +434,9 @@ const s2 = StyleSheet.create({
 });
 
 function ModernMarksheet({ student, groupedMarks, primaryColor, schoolName, logoUrl, tenant }: any) {
-  const cls = typeof student.classId === 'object' ? student.classId : null;
+  const examClass = groupedMarks[0]?.exam?.classId;
+  const cls = (typeof examClass === 'object' && examClass ? examClass : null)
+    ?? (typeof student.classId === 'object' ? student.classId : null);
   const totalObtained = groupedMarks.reduce((s: number, g: GroupedMarks) => s + g.obtained, 0);
   const totalMax = groupedMarks.reduce((s: number, g: GroupedMarks) => s + g.total, 0);
   const overallPct = totalMax > 0 ? Math.round((totalObtained / totalMax) * 100) : 0;
@@ -668,7 +672,9 @@ const s3 = StyleSheet.create({
 });
 
 function MinimalMarksheet({ student, groupedMarks, primaryColor, schoolName, logoUrl, tenant }: any) {
-  const cls = typeof student.classId === 'object' ? student.classId : null;
+  const examClass = groupedMarks[0]?.exam?.classId;
+  const cls = (typeof examClass === 'object' && examClass ? examClass : null)
+    ?? (typeof student.classId === 'object' ? student.classId : null);
   const totalObtained = groupedMarks.reduce((s: number, g: GroupedMarks) => s + g.obtained, 0);
   const totalMax = groupedMarks.reduce((s: number, g: GroupedMarks) => s + g.total, 0);
   const overallPct = totalMax > 0 ? Math.round((totalObtained / totalMax) * 100) : 0;
@@ -885,7 +891,9 @@ const s4 = StyleSheet.create({
 });
 
 function RoyalMarksheet({ student, groupedMarks, primaryColor, schoolName, logoUrl, tenant }: any) {
-  const cls = typeof student.classId === 'object' ? student.classId : null;
+  const examClass = groupedMarks[0]?.exam?.classId;
+  const cls = (typeof examClass === 'object' && examClass ? examClass : null)
+    ?? (typeof student.classId === 'object' ? student.classId : null);
   const totalObtained = groupedMarks.reduce((s: number, g: GroupedMarks) => s + g.obtained, 0);
   const totalMax = groupedMarks.reduce((s: number, g: GroupedMarks) => s + g.total, 0);
   const overallPct = totalMax > 0 ? Math.round((totalObtained / totalMax) * 100) : 0;
@@ -1146,7 +1154,9 @@ const s5 = StyleSheet.create({
 });
 
 function PearlMarksheet({ student, groupedMarks, primaryColor, schoolName, logoUrl, tenant }: any) {
-  const cls = typeof student.classId === 'object' ? student.classId : null;
+  const examClass = groupedMarks[0]?.exam?.classId;
+  const cls = (typeof examClass === 'object' && examClass ? examClass : null)
+    ?? (typeof student.classId === 'object' ? student.classId : null);
   const totalObtained = groupedMarks.reduce((s: number, g: GroupedMarks) => s + g.obtained, 0);
   const totalMax = groupedMarks.reduce((s: number, g: GroupedMarks) => s + g.total, 0);
   const overallPct = totalMax > 0 ? Math.round((totalObtained / totalMax) * 100) : 0;

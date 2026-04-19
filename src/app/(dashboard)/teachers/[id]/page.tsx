@@ -12,6 +12,7 @@ import {
   ArrowLeftOutlined, EditOutlined, SaveOutlined, UserOutlined,
   MailOutlined, PhoneOutlined, CalendarOutlined, BookOutlined, DeleteOutlined, LockOutlined,
   DollarOutlined, IdcardOutlined, SafetyOutlined, TeamOutlined,
+  StopOutlined, CheckCircleOutlined,
 } from '@ant-design/icons';
 import { Tabs } from 'antd';
 import { getInitials, formatDate } from '@/lib/utils';
@@ -35,6 +36,7 @@ export default function TeacherProfilePage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [passModal, setPassModal] = useState(false);
+  const [statusChanging, setStatusChanging] = useState(false);
   const { user: currentUser } = useAuth();
 
   // Assignment state
@@ -100,6 +102,19 @@ export default function TeacherProfilePage() {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
       setError(msg || 'Failed to update teacher');
     } finally { setSaving(false); }
+  };
+
+  const handleStatusChange = async (status: string) => {
+    setStatusChanging(true);
+    try {
+      const res = await api.patch<{ data: Teacher }>(`/teachers/${id}/status`, { status });
+      setTeacher(res.data.data);
+      message.success(`Teacher marked as ${status}`);
+    } catch {
+      message.error('Failed to update teacher status');
+    } finally {
+      setStatusChanging(false);
+    }
   };
 
   const handleSaveAssignments = async () => {
@@ -169,13 +184,24 @@ export default function TeacherProfilePage() {
         ) : (
           <Space>
             {(currentUser?.role === 'management' || currentUser?.role === 'saas_admin') && (
-              <Button
-                icon={<LockOutlined />}
-                onClick={() => setPassModal(true)}
-                style={{ borderRadius: 8 }}
-              >
-                Reset Password
-              </Button>
+              <>
+                <Button
+                  icon={teacher.status === 'active' ? <StopOutlined /> : <CheckCircleOutlined />}
+                  loading={statusChanging}
+                  onClick={() => handleStatusChange(teacher.status === 'active' ? 'inactive' : 'active')}
+                  style={{ borderRadius: 8 }}
+                  danger={teacher.status === 'active'}
+                >
+                  {teacher.status === 'active' ? 'Deactivate' : 'Activate'}
+                </Button>
+                <Button
+                  icon={<LockOutlined />}
+                  onClick={() => setPassModal(true)}
+                  style={{ borderRadius: 8 }}
+                >
+                  Reset Password
+                </Button>
+              </>
             )}
             <Button icon={<EditOutlined />} onClick={() => setEditing(true)} style={{ borderRadius: 8 }}>Edit</Button>
           </Space>

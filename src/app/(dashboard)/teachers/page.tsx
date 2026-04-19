@@ -9,6 +9,7 @@ import { DataTable } from '@/components/tables/DataTable';
 import { Button, Avatar, Tag, Typography, Space, Modal, Dropdown, App } from 'antd';
 import {
   UserAddOutlined, EyeOutlined, DeleteOutlined, MoreOutlined, UserOutlined,
+  StopOutlined, CheckCircleOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { getInitials } from '@/lib/utils';
@@ -73,6 +74,16 @@ export default function TeachersPage() {
     }
   };
 
+  const handleStatusChange = async (teacherId: string, status: string) => {
+    try {
+      await api.patch(`/teachers/${teacherId}/status`, { status });
+      message.success(`Teacher marked as ${status}`);
+      fetchTeachers(page, limit, search);
+    } catch {
+      message.error('Failed to update teacher status');
+    }
+  };
+
   const columns: ColumnsType<Teacher> = [
     {
       title: 'Teacher',
@@ -104,6 +115,11 @@ export default function TeachersPage() {
           menu={{
             items: [
               { key: 'view', label: 'View', icon: <EyeOutlined />, onClick: () => router.push(`/teachers/${t._id}`) },
+              { type: 'divider' },
+              ...(t.status === 'active'
+                ? [{ key: 'deactivate', label: 'Deactivate', icon: <StopOutlined />, onClick: () => handleStatusChange(t._id, 'inactive') }]
+                : [{ key: 'activate', label: 'Activate', icon: <CheckCircleOutlined />, onClick: () => handleStatusChange(t._id, 'active') }]
+              ),
               { type: 'divider' },
               { key: 'delete', label: 'Delete', icon: <DeleteOutlined />, danger: true, onClick: () => setDeleteId(t._id) },
             ],

@@ -29,7 +29,11 @@ export default function AttendancePage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [classId, setClassId] = useState('');
   const [sectionId, setSectionId] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const todayLocal = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  })();
+  const [date, setDate] = useState(todayLocal);
   const [entries, setEntries] = useState<Record<string, AttendanceEntry>>({});
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -38,18 +42,40 @@ export default function AttendancePage() {
     api.get<{ data: { classes: Class[] } }>('/classes').then((res) => setClasses(res.data.data.classes));
   }, []);
 
-  const loadStudents = async (cId: string) => {
+  const loadStudentsAndAttendance = async (cId: string, selectedDate: string) => {
     if (!cId) return;
     setLoading(true);
     try {
-      const res = await api.get<{ data: { students: Student[] } }>(`/students?classId=${cId}&limit=100`);
-      const sts = res.data.data.students;
+      const [studentsRes, attendanceRes] = await Promise.all([
+        api.get<{ data: { students: Student[] } }>(`/students?classId=${cId}&status=active&limit=200`),
+        api.get<{ data: unknown[] }>(`/attendance?classId=${cId}&date=${selectedDate}`).catch(() => ({ data: { data: [] } })),
+      ]);
+
+      const sts = studentsRes.data.data.students;
       setStudents(sts);
+
+      // Default everyone to present
       const init: Record<string, AttendanceEntry> = {};
       sts.forEach((s) => { init[s._id] = { studentId: s._id, status: 'present', note: '' }; });
+
+      // Overlay with saved records if attendance already exists for this date
+      const existing = (attendanceRes.data.data ?? []) as Array<{ records: Array<{ studentId: string; status: AttendanceStatus; note: string }> }>;
+      if (existing.length > 0 && existing[0]?.records) {
+        existing[0].records.forEach((r) => {
+          if (init[r.studentId]) {
+            init[r.studentId] = { studentId: r.studentId, status: r.status, note: r.note || '' };
+          }
+        });
+      }
+
       setEntries(init);
     } finally { setLoading(false); }
   };
+
+  // Reload attendance when date changes (if a class is already selected)
+  useEffect(() => {
+    if (classId) loadStudentsAndAttendance(classId, date);
+  }, [date]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const setStatus = (studentId: string, status: AttendanceStatus) => {
     setEntries((prev) => ({ ...prev, [studentId]: { ...prev[studentId]!, status } }));
@@ -86,7 +112,7 @@ export default function AttendancePage() {
               <Text style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500 }}>Date</Text>
               <DatePicker
                 value={dayjs(date)}
-                onChange={(d) => setDate(d ? d.format('YYYY-MM-DD') : new Date().toISOString().split('T')[0])}
+                onChange={(d) => setDate(d ? d.format('YYYY-MM-DD') : todayLocal)}
                 style={{ width: '100%' }}
               />
             </div>
@@ -97,7 +123,7 @@ export default function AttendancePage() {
               <Select
                 style={{ width: '100%' }}
                 placeholder="Select class"
-                onChange={(v) => { setClassId(v); setSectionId(''); loadStudents(v); }}
+                onChange={(v) => { setClassId(v); setSectionId(''); loadStudentsAndAttendance(v, date); }}
                 options={classes.map((c) => ({ value: c._id, label: c.name }))}
               />
             </div>

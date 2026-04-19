@@ -4,7 +4,9 @@ import { useEffect, useState } from 'react';
 import { Card, Col, Row, Tag, Typography, Skeleton, Empty } from 'antd';
 import {
   TeamOutlined, UserOutlined, BookOutlined, RiseOutlined, CalendarOutlined,
+  ClockCircleOutlined, ArrowRightOutlined,
 } from '@ant-design/icons';
+import Link from 'next/link';
 import { DashboardStats } from '@/types';
 import api from '@/lib/api';
 import { formatDate } from '@/lib/utils';
@@ -54,6 +56,30 @@ const statConfig = [
     getDesc: () => 'Present today',
   },
 ];
+
+const examTypeColor: Record<string, string> = {
+  unit: 'blue', mid: 'orange', final: 'red', practical: 'green', assignment: 'purple',
+};
+
+function getDaysUntil(dateStr: string): number {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const d = new Date(dateStr); d.setHours(0, 0, 0, 0);
+  return Math.round((d.getTime() - today.getTime()) / 86400000);
+}
+
+function UrgencyBadge({ days }: { days: number }) {
+  if (days === 0) return <Tag color="error" icon={<ClockCircleOutlined />} style={{ fontWeight: 600 }}>Today</Tag>;
+  if (days === 1) return <Tag color="warning" icon={<ClockCircleOutlined />} style={{ fontWeight: 600 }}>Tomorrow</Tag>;
+  if (days <= 7) return <Tag color="orange" style={{ fontWeight: 600 }}>in {days} days</Tag>;
+  return <Tag color="default" style={{ fontWeight: 500 }}>in {days} days</Tag>;
+}
+
+function urgencyBarColor(days: number): string {
+  if (days === 0) return '#dc2626';
+  if (days === 1) return '#ea580c';
+  if (days <= 7) return '#d97706';
+  return '#2563eb';
+}
 
 function ChartTooltip({ active, payload, label }: {
   active?: boolean; payload?: { value: number }[]; label?: string;
@@ -207,31 +233,79 @@ export default function DashboardPage() {
         <Col xs={24} lg={8}>
           <Card
             title={<span><CalendarOutlined style={{ marginRight: 8 }} />Upcoming Exams</span>}
-            extra={stats?.upcomingExams.length ? <Tag>{stats.upcomingExams.length}</Tag> : null}
+            extra={
+              stats?.upcomingExams.length
+                ? <Link href="/exams"><ArrowRightOutlined style={{ color: '#8c8c8c' }} /></Link>
+                : null
+            }
             style={{ borderRadius: 10 }}
-            styles={{ body: { padding: '12px 16px' } }}
+            styles={{ body: { padding: '8px 16px 12px' } }}
           >
             {!stats?.upcomingExams.length ? (
-              <Empty description="No upcoming exams" style={{ margin: '24px 0' }} image={Empty.PRESENTED_IMAGE_SIMPLE} />
+              <Empty description="No upcoming exams scheduled" style={{ margin: '24px 0' }} image={Empty.PRESENTED_IMAGE_SIMPLE} />
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {stats.upcomingExams.map((exam) => (
-                  <div
-                    key={exam._id}
-                    style={{
-                      display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
-                      gap: 12, padding: '10px 12px', borderRadius: 8, background: '#fafafa',
-                    }}
-                  >
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <Text strong style={{ fontSize: 13, display: 'block', lineHeight: '1.3' }}>{exam.name}</Text>
-                      <Text type="secondary" style={{ fontSize: 11, textTransform: 'capitalize' }}>{exam.type} exam</Text>
-                    </div>
-                    <Text type="secondary" style={{ fontSize: 12, flexShrink: 0 }}>
-                      {exam.startDate ? formatDate(exam.startDate) : 'TBD'}
-                    </Text>
-                  </div>
-                ))}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                {stats.upcomingExams.map((exam) => {
+                  const days = exam.startDate ? getDaysUntil(exam.startDate) : 99;
+                  const barColor = urgencyBarColor(days);
+                  const cls = typeof exam.classId === 'object' && exam.classId
+                    ? (exam.classId as { name: string }).name
+                    : null;
+                  return (
+                    <Link href="/exams" key={exam._id} style={{ textDecoration: 'none' }}>
+                      <div
+                        style={{
+                          display: 'flex', alignItems: 'flex-start', gap: 10,
+                          padding: '10px 0',
+                          borderBottom: '1px solid #f5f5f5',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {/* Urgency bar */}
+                        <div style={{
+                          width: 3, minHeight: 40, borderRadius: 4,
+                          background: barColor, flexShrink: 0, marginTop: 2,
+                        }} />
+
+                        {/* Content */}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <Text strong style={{ fontSize: 13, display: 'block', lineHeight: '1.4', color: '#111827' }}>
+                            {exam.name}
+                          </Text>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3, flexWrap: 'wrap' }}>
+                            {cls && (
+                              <Text style={{ fontSize: 11, color: '#6b7280', fontWeight: 500 }}>{cls}</Text>
+                            )}
+                            {cls && <span style={{ fontSize: 10, color: '#d1d5db' }}>·</span>}
+                            <Tag
+                              color={examTypeColor[exam.type] ?? 'default'}
+                              style={{ fontSize: 10, padding: '0 5px', lineHeight: '16px', textTransform: 'capitalize', margin: 0 }}
+                            >
+                              {exam.type}
+                            </Tag>
+                            {exam.academicYear && (
+                              <>
+                                <span style={{ fontSize: 10, color: '#d1d5db' }}>·</span>
+                                <Text style={{ fontSize: 11, color: '#9ca3af' }}>{exam.academicYear}</Text>
+                              </>
+                            )}
+                          </div>
+                          <Text type="secondary" style={{ fontSize: 11, marginTop: 3, display: 'block' }}>
+                            {exam.startDate ? formatDate(exam.startDate) : 'Date TBD'}
+                            {exam.endDate && exam.endDate !== exam.startDate
+                              ? ` – ${formatDate(exam.endDate)}`
+                              : ''}
+                          </Text>
+                        </div>
+
+                        {/* Days badge */}
+                        <div style={{ flexShrink: 0, paddingTop: 2 }}>
+                          <UrgencyBadge days={days} />
+                        </div>
+                      </div>
+                    </Link>
+                  );
+                })}
               </div>
             )}
           </Card>

@@ -10,7 +10,8 @@ import { DataTable } from '@/components/tables/DataTable';
 import { Button, Avatar, Tag, Select, Typography, Space, Modal, Dropdown, App } from 'antd';
 import {
   UserAddOutlined, EyeOutlined, EditOutlined, DeleteOutlined,
-  MoreOutlined, TeamOutlined,
+  MoreOutlined, TeamOutlined, StopOutlined, CheckCircleOutlined,
+  TrophyOutlined, SwapOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { getInitials, formatDate } from '@/lib/utils';
@@ -30,6 +31,7 @@ export default function StudentsPage() {
   const [classes, setClasses] = useState<Class[]>([]);
   const [loading, setLoading] = useState(true);
   const [classFilter, setClassFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -38,10 +40,11 @@ export default function StudentsPage() {
   const [search, setSearch] = useState('');
   const [total, setTotal] = useState(0);
 
-  const fetchStudents = (classId = classFilter, currentPage = page, currentLimit = limit, currentSearch = search) => {
+  const fetchStudents = (classId = classFilter, sf = statusFilter, currentPage = page, currentLimit = limit, currentSearch = search) => {
     setLoading(true);
     const params = new URLSearchParams();
     if (classId && classId !== 'all') params.append('classId', classId);
+    if (sf && sf !== 'all') params.append('status', sf);
     params.append('page', currentPage.toString());
     params.append('limit', currentLimit.toString());
     if (currentSearch) params.append('search', currentSearch);
@@ -56,26 +59,42 @@ export default function StudentsPage() {
   };
 
   useEffect(() => {
-    fetchStudents(classFilter, page, limit, search);
+    fetchStudents(classFilter, statusFilter, page, limit, search);
     api.get<{ data: { classes: Class[] } }>('/classes').then((res) => setClasses(res.data.data.classes));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleTableChange = (newPage: number, newPageSize: number) => {
     setPage(newPage);
     setLimit(newPageSize);
-    fetchStudents(classFilter, newPage, newPageSize, search);
+    fetchStudents(classFilter, statusFilter, newPage, newPageSize, search);
   };
 
   const handleSearchChange = (val: string) => {
     setSearch(val);
     setPage(1);
-    fetchStudents(classFilter, 1, limit, val);
+    fetchStudents(classFilter, statusFilter, 1, limit, val);
   };
 
   const handleFilterChange = (val: string) => {
     setClassFilter(val);
     setPage(1);
-    fetchStudents(val, 1, limit, search);
+    fetchStudents(val, statusFilter, 1, limit, search);
+  };
+
+  const handleStatusFilterChange = (val: string) => {
+    setStatusFilter(val);
+    setPage(1);
+    fetchStudents(classFilter, val, 1, limit, search);
+  };
+
+  const handleStatusChange = async (studentId: string, status: string) => {
+    try {
+      await api.patch(`/students/${studentId}/status`, { status });
+      message.success(`Student marked as ${status}`);
+      fetchStudents(classFilter, statusFilter, page, limit, search);
+    } catch {
+      message.error('Failed to update student status');
+    }
   };
 
   const handleDelete = async () => {
@@ -146,6 +165,11 @@ export default function StudentsPage() {
               { key: 'view', label: 'View Profile', icon: <EyeOutlined />, onClick: () => router.push(`/students/${s._id}`) },
               { key: 'edit', label: 'Edit', icon: <EditOutlined />, onClick: () => router.push(`/students/${s._id}?edit=1`) },
               { type: 'divider' },
+              ...(s.status !== 'active' ? [{ key: 'activate', label: 'Activate', icon: <CheckCircleOutlined />, onClick: () => handleStatusChange(s._id, 'active') }] : []),
+              ...(s.status === 'active' ? [{ key: 'deactivate', label: 'Deactivate', icon: <StopOutlined />, onClick: () => handleStatusChange(s._id, 'inactive') }] : []),
+              ...(s.status !== 'graduated' ? [{ key: 'graduate', label: 'Mark as Graduated', icon: <TrophyOutlined />, onClick: () => handleStatusChange(s._id, 'graduated') }] : []),
+              ...(s.status !== 'transferred' ? [{ key: 'transfer', label: 'Mark as Transferred', icon: <SwapOutlined />, onClick: () => handleStatusChange(s._id, 'transferred') }] : []),
+              { type: 'divider' },
               { key: 'delete', label: 'Delete', icon: <DeleteOutlined />, danger: true, onClick: () => setDeleteId(s._id) },
             ],
           }}
@@ -175,15 +199,28 @@ export default function StudentsPage() {
         )}
       </div>
 
-      <div style={{ marginBottom: 16 }}>
+      <div style={{ marginBottom: 16, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <Select
           value={classFilter}
           onChange={handleFilterChange}
-          style={{ width: '100%', maxWidth: 220 }}
+          style={{ width: 200 }}
           size="middle"
           options={[
             { value: 'all', label: 'All Classes' },
             ...classes.map((c) => ({ value: c._id, label: c.name })),
+          ]}
+        />
+        <Select
+          value={statusFilter}
+          onChange={handleStatusFilterChange}
+          style={{ width: 180 }}
+          size="middle"
+          options={[
+            { value: 'all', label: 'All Statuses' },
+            { value: 'active', label: 'Active' },
+            { value: 'inactive', label: 'Inactive' },
+            { value: 'graduated', label: 'Graduated' },
+            { value: 'transferred', label: 'Transferred' },
           ]}
         />
       </div>

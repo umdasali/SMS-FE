@@ -75,17 +75,20 @@ export default function MarksEntryPage() {
       ? api.get<{ data: Teacher }>('/teachers/me').catch(() => ({ data: { data: null } }))
       : Promise.resolve({ data: { data: null } });
 
-    api.get<{ data: { exams: Exam[] } }>(`/exams?_id=${examId}`)
+    api.get<{ data: Exam }>(`/exams/${examId}`)
       .then(async (res) => {
-        const e = res.data?.data?.exams?.[0];
+        const e = res.data?.data;
         if (!e) return;
         setExam(e);
         const classId = typeof e.classId === 'object' ? e.classId?._id : e.classId;
 
         const [sRes, subRes, marksRes, teacherRes] = await Promise.all([
-          api.get<{ data: { students: Student[] } }>(`/students?classId=${classId}&limit=200`),
+          api.get<{ data: { students: Student[] } }>(`/students?classId=${classId}&status=active&limit=200`),
           api.get<{ data: { subjects: Subject[] } }>(`/subjects?classId=${classId}`),
-          api.get<{ data: Mark[] }>(`/exams/marks?examId=${examId}`).catch(() => ({ data: { data: [] } })),
+          api.get<{ data: Mark[] }>(`/exams/marks?examId=${examId}`).catch((err) => {
+            if (err?.response?.status === 403) throw err;
+            return { data: { data: [] } };
+          }),
           teacherFetch,
         ]);
 
@@ -121,7 +124,13 @@ export default function MarksEntryPage() {
 
         setMarks(init);
       })
-      .catch(() => setError('Failed to load exam data.'))
+      .catch((err) => {
+        if (err?.response?.status === 403) {
+          setError('You are not authorized to access marks for this exam. Only teachers assigned to this class can view or enter marks.');
+        } else {
+          setError('Failed to load exam data.');
+        }
+      })
       .finally(() => setLoading(false));
   }, [examId, isTeacher]);
 
@@ -221,6 +230,7 @@ export default function MarksEntryPage() {
             type="primary"
             icon={<SaveOutlined />}
             loading={saving}
+            disabled={!!error}
             onClick={handleSave}
             style={{ borderRadius: 8 }}
           >
