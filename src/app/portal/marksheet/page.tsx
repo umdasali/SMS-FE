@@ -7,7 +7,7 @@ import { Student, Mark, Exam, Subject } from '@/types';
 import api from '@/lib/api';
 import { Button, Card, Tag, Typography, Skeleton, Empty } from 'antd';
 import { FileTextOutlined, DownloadOutlined } from '@ant-design/icons';
-import { getGradeColor } from '@/lib/utils';
+import { getGradeColor, resolveGrade } from '@/lib/utils';
 
 const MarksheetPDF = dynamic(() => import('@/components/pdf/MarksheetPDF'), { ssr: false });
 
@@ -30,17 +30,19 @@ export default function PortalMarksheetPage() {
   const [showPDF, setShowPDF] = useState(false);
 
   useEffect(() => {
-    if (!user || user.role !== 'student') return;
-    Promise.all([api.get<{ data: Student }>('/students/me')])
-      .then(async ([sRes]) => {
+    if (!user) return;
+    if (user.role !== 'student') { setLoading(false); return; }
+
+    api.get<{ data: Student }>('/students/me')
+      .then(async (sRes) => {
         const s = sRes.data.data;
         setStudent(s);
         const mRes = await api.get<{ data: { byExam: Record<string, Mark[]> } }>(`/exams/marks/student/${s._id}`);
-        const { byExam } = mRes.data.data;
+        const byExam: Record<string, Mark[]> = mRes.data.data?.byExam ?? {};
         const groups: GroupedMarks[] = Object.entries(byExam).map(([, examMarks]) => {
           const exam = examMarks[0]?.examId as Exam;
-          const total = examMarks.reduce((s, m) => s + m.total, 0);
-          const obtained = examMarks.reduce((s, m) => s + m.obtained, 0);
+          const total = examMarks.reduce((acc, m) => acc + m.total, 0);
+          const obtained = examMarks.reduce((acc, m) => acc + m.obtained, 0);
           const percentage = total > 0 ? Math.round((obtained / total) * 100) : 0;
           let grade = 'F';
           if (percentage >= 90) grade = 'A+';
@@ -54,6 +56,7 @@ export default function PortalMarksheetPage() {
         });
         setGroupedMarks(groups);
       })
+      .catch(() => { /* marks unavailable — empty state handles display */ })
       .finally(() => setLoading(false));
   }, [user]);
 
@@ -123,7 +126,7 @@ export default function PortalMarksheetPage() {
                       <tr key={m._id} style={{ borderBottom: '1px solid #f0f0f0' }}>
                         <td style={{ padding: '8px 10px' }}>{typeof sub === 'object' ? sub.name : '—'}</td>
                         <td style={{ padding: '8px 10px', textAlign: 'center' }}>{m.obtained}/{m.total}</td>
-                        <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 700, color: getGradeColor(m.grade) }}>{m.grade}</td>
+                        <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 700, color: getGradeColor(resolveGrade(m)) }}>{resolveGrade(m)}</td>
                         <td style={{ padding: '8px 10px', textAlign: 'center' }}>
                           <Tag color={passed ? 'success' : 'error'}>{passed ? 'Pass' : 'Fail'}</Tag>
                         </td>
