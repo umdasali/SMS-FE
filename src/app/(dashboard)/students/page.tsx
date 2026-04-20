@@ -102,7 +102,7 @@ export default function StudentsPage() {
     setDeleting(true);
     try {
       await api.delete(`/students/${deleteId}`);
-      fetchStudents(classFilter, page, limit, search);
+      fetchStudents(classFilter, statusFilter, page, limit, search);
       message.success('Student deleted successfully');
     } finally {
       setDeleting(false);
