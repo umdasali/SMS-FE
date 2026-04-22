@@ -141,14 +141,14 @@ const s1 = StyleSheet.create({
   divisionText: { fontFamily: 'Helvetica-Bold', fontSize: 10, color: '#1e3a5f', textAlign: 'center' },
 
   // Signatures
-  sigRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10, marginBottom: 4 },
+  sigRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 70, marginBottom: 4 },
   sigBlock: { alignItems: 'center', width: 130 },
   sigLine: { width: 130, height: 0.5, backgroundColor: '#374151', marginBottom: 4 },
   sigLabel: { fontSize: 7.5, color: '#374151', fontFamily: 'Helvetica-Bold', textAlign: 'center' },
   sigSub: { fontSize: 7, color: '#6b7280', textAlign: 'center', marginTop: 1 },
 
   // Seal
-  sealCircle: { width: 56, height: 56, borderRadius: 28, borderWidth: 1.5, borderColor: '#1e3a5f', alignItems: 'center', justifyContent: 'center', borderStyle: 'dashed' },
+  sealCircle: { marginTop: 40, width: 56, height: 56, borderRadius: 28, borderWidth: 1.5, borderColor: '#1e3a5f', alignItems: 'center', justifyContent: 'center', borderStyle: 'dashed' },
   sealText: { fontSize: 6, color: '#1e3a5f', textAlign: 'center', fontFamily: 'Helvetica-Bold' },
 
   // Footer
@@ -421,12 +421,12 @@ const s2 = StyleSheet.create({
   declText: { fontSize: 8, color: '#1e3a5f', fontFamily: 'Helvetica-Bold', textAlign: 'center' },
 
   // Sig
-  sigRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 24 },
+  sigRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 70 },
   sigBlock: { alignItems: 'center', width: 130 },
   sigLine: { width: 130, height: 0.5, backgroundColor: '#374151', marginBottom: 4 },
   sigLabel: { fontSize: 7.5, fontFamily: 'Helvetica-Bold', color: '#374151' },
   sigSub: { fontSize: 7, color: '#9ca3af', marginTop: 1 },
-  sealCircle: { width: 52, height: 52, borderRadius: 26, borderWidth: 1.5, borderColor: '#1d4ed8', alignItems: 'center', justifyContent: 'center', borderStyle: 'dashed' },
+  sealCircle: { marginTop: 40, width: 52, height: 52, borderRadius: 26, borderWidth: 1.5, borderColor: '#1d4ed8', alignItems: 'center', justifyContent: 'center', borderStyle: 'dashed' },
   sealText: { fontSize: 6, color: '#1d4ed8', textAlign: 'center', fontFamily: 'Helvetica-Bold' },
 
   footer: { borderTopWidth: 0.5, borderTopColor: '#d1d5db', paddingTop: 8, marginTop: 10, alignItems: 'center' },
@@ -455,7 +455,7 @@ function ModernMarksheet({ student, groupedMarks, primaryColor, schoolName, logo
         <Image src={logoUrl} style={s2.logoWrap} />
         <View style={{ flex: 1 }}>
           <Text style={s2.schoolName}>{schoolName}</Text>
-          <Text style={s2.schoolType}>{tenant?.type?.toUpperCase() || 'EDUCATIONAL INSTITUTION'}</Text>
+          {/* <Text style={s2.schoolType}>{tenant?.type?.toUpperCase() || 'EDUCATIONAL INSTITUTION'}</Text> */}
           <Text style={s2.schoolAddr}>{[tenant?.address, tenant?.city, tenant?.state].filter(Boolean).join(', ')}</Text>
           <Text style={s2.schoolAddr}>Code: {tenant?.schoolCode || '—'}  |  {tenant?.phone || '—'}  |  {tenant?.email || '—'}</Text>
         </View>
@@ -659,12 +659,12 @@ const s3 = StyleSheet.create({
   resultBold: { fontFamily: 'Helvetica-Bold', fontSize: 9, color: '#111827' },
 
   // Sigs
-  sigRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 20 },
+  sigRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 40 },
   sigBlock: { width: 130 },
   sigLine: { width: 130, height: 0.8, backgroundColor: '#374151', marginBottom: 4 },
   sigLabel: { fontSize: 8, fontFamily: 'Helvetica-Bold', color: '#374151' },
   sigSub: { fontSize: 7.5, color: '#6b7280', marginTop: 1 },
-  sealCircle: { width: 52, height: 52, borderRadius: 26, borderWidth: 1, borderColor: '#374151', alignItems: 'center', justifyContent: 'center', borderStyle: 'dashed' },
+  sealCircle: { marginTop: 20, width: 52, height: 52, borderRadius: 26, borderWidth: 1, borderColor: '#374151', alignItems: 'center', justifyContent: 'center', borderStyle: 'dashed' },
   sealText: { fontSize: 6.5, color: '#374151', textAlign: 'center', fontFamily: 'Helvetica-Bold' },
 
   footer: { borderTopWidth: 0.8, borderTopColor: '#374151', paddingTop: 6, marginTop: 16 },
@@ -817,7 +817,7 @@ const s4 = StyleSheet.create({
   header: { backgroundColor: '#0a1628', padding: 0 },
   headerGoldTop: { height: 5, backgroundColor: '#c9a84c' },
   headerContent: { flexDirection: 'row', alignItems: 'center', padding: 22, paddingVertical: 16 },
-  logoCircle: { width: 72, height: 72, borderRadius: 36, borderWidth: 2.5, borderColor: '#c9a84c', backgroundColor: '#0a1628', marginRight: 18, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
+  logoCircle: { width: 72, height: 72, borderRadius: 36, borderWidth: 2.5, borderColor: '#c9a84c', backgroundColor: '#ffffff', marginRight: 18, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
   schoolName: { fontFamily: 'Helvetica-Bold', fontSize: 15, color: '#ffffff' },
   schoolMotto: { fontSize: 8, color: '#c9a84c', marginTop: 3, fontFamily: 'Helvetica-Bold', letterSpacing: 0.5 },
   schoolAddr: { fontSize: 7.5, color: '#94a3b8', marginTop: 2 },
@@ -878,12 +878,12 @@ const s4 = StyleSheet.create({
   declText: { fontFamily: 'Helvetica-Bold', fontSize: 8.5, color: '#0a1628', textAlign: 'center' },
 
   // Sigs
-  sigRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 20 },
+  sigRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 70 },
   sigBlock: { width: 130, alignItems: 'center' },
   sigLine: { width: 130, height: 1, backgroundColor: '#c9a84c', marginBottom: 4 },
   sigLabel: { fontSize: 7.5, fontFamily: 'Helvetica-Bold', color: '#0a1628' },
   sigSub: { fontSize: 7, color: '#6b7280', marginTop: 1 },
-  sealCircle: { width: 56, height: 56, borderRadius: 28, borderWidth: 2, borderColor: '#c9a84c', alignItems: 'center', justifyContent: 'center', borderStyle: 'dashed' },
+  sealCircle: { marginTop: 40, width: 56, height: 56, borderRadius: 28, borderWidth: 2, borderColor: '#c9a84c', alignItems: 'center', justifyContent: 'center', borderStyle: 'dashed' },
   sealText: { fontSize: 6, color: '#c9a84c', textAlign: 'center', fontFamily: 'Helvetica-Bold' },
 
   footer: { borderTopWidth: 1, borderTopColor: '#c9a84c', paddingTop: 8, marginTop: 10, alignItems: 'center', backgroundColor: '#fafaf7' },
@@ -927,7 +927,7 @@ function RoyalMarksheet({ student, groupedMarks, primaryColor, schoolName, logoU
       {/* Doc badge */}
       <View style={s4.docBadge}>
         <Text style={s4.docBadgeText}>Statement of Marks</Text>
-        <Text style={s4.docBadgeSub}>Official Academic Record — Confidential</Text>
+        <Text style={s4.docBadgeSub}>Official Academic Record - Confidential</Text>
       </View>
 
       <View style={s4.body}>
@@ -1141,12 +1141,12 @@ const s5 = StyleSheet.create({
   certText: { fontSize: 9, color: '#14532d', textAlign: 'center', fontFamily: 'Helvetica-Bold', marginBottom: 14, lineHeight: 1.5 },
 
   // Sigs
-  sigRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 },
+  sigRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 60 },
   sigBlock: { alignItems: 'center', width: 130 },
   sigLine: { width: 130, height: 1.5, backgroundColor: '#14532d', marginBottom: 4 },
   sigLabel: { fontSize: 7.5, fontFamily: 'Helvetica-Bold', color: '#14532d' },
   sigSub: { fontSize: 7, color: '#6b7280', marginTop: 1 },
-  sealCircle: { width: 58, height: 58, borderRadius: 29, borderWidth: 2, borderColor: '#14532d', alignItems: 'center', justifyContent: 'center', borderStyle: 'dashed' },
+  sealCircle: { marginTop: 40, width: 58, height: 58, borderRadius: 29, borderWidth: 2, borderColor: '#14532d', alignItems: 'center', justifyContent: 'center', borderStyle: 'dashed' },
   sealText: { fontSize: 6, color: '#14532d', textAlign: 'center', fontFamily: 'Helvetica-Bold' },
 
   footer: { borderTopWidth: 1.5, borderTopColor: '#14532d', paddingTop: 6, marginTop: 8, alignItems: 'center' },

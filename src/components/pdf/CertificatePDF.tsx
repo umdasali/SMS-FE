@@ -1,3 +1,4 @@
+/* eslint-disable jsx-a11y/alt-text */
 'use client';
 
 import {
@@ -72,9 +73,10 @@ function getStudentClass(student: Student, certificate: Certificate): string {
   }
 
   // 2. Fallback to certificate content (if saved during generation)
-  const content = certificate.content as any;
-  if (typeof content?.classId === 'object' && content?.classId?.name) {
-    return content.classId.name;
+  const content = certificate.content as Record<string, unknown>;
+  const contentClassId = content?.classId;
+  if (typeof contentClassId === 'object' && contentClassId !== null && 'name' in contentClassId) {
+    return (contentClassId as { name: string }).name;
   }
 
   if (typeof content?.className === 'string') {
@@ -108,7 +110,7 @@ function SignatureRow({ primaryColor, leftLabel, rightLabel }: { primaryColor: s
 }
 
 // ── TEMPLATE: CLASSIC ─────────────────────────────────────────────────────────
-function ClassicCertificate({ student, certificate, primaryColor, schoolName, logoUrl, tenant, schoolInitials }: TemplateProps) {
+function ClassicCertificate({ student, certificate, primaryColor, schoolName, logoUrl, tenant, schoolInitials: _schoolInitials }: TemplateProps) {
   const cls = getStudentClass(student, certificate);
   const bodyText = CERT_BODY[certificate.type]?.(student.name, schoolName, cls) || '';
 
@@ -137,7 +139,7 @@ function ClassicCertificate({ student, certificate, primaryColor, schoolName, lo
 }
 
 // ── TEMPLATE: ELEGANT ─────────────────────────────────────────────────────────
-function ElegantCertificate({ student, certificate, primaryColor, schoolName, logoUrl, tenant, schoolInitials }: TemplateProps) {
+function ElegantCertificate({ student, certificate, primaryColor, schoolName, logoUrl, tenant, schoolInitials: _schoolInitials }: TemplateProps) {
   const cls = getStudentClass(student, certificate);
   const bodyText = CERT_BODY[certificate.type]?.(student.name, schoolName, cls) || '';
 
@@ -168,7 +170,7 @@ function ElegantCertificate({ student, certificate, primaryColor, schoolName, lo
 }
 
 // ── TEMPLATE: MODERN ──────────────────────────────────────────────────────────
-function ModernCertificate({ student, certificate, primaryColor, schoolName, logoUrl, tenant, schoolInitials }: TemplateProps) {
+function ModernCertificate({ student, certificate, primaryColor, schoolName, logoUrl, tenant, schoolInitials: _schoolInitials }: TemplateProps) {
   const cls = getStudentClass(student, certificate);
   const bodyText = CERT_BODY[certificate.type]?.(student.name, schoolName, cls) || '';
 
@@ -198,7 +200,7 @@ function ModernCertificate({ student, certificate, primaryColor, schoolName, log
 }
 
 // ── TEMPLATE: ROYAL ───────────────────────────────────────────────────────────
-function RoyalCertificate({ student, certificate, primaryColor, schoolName, logoUrl, tenant, schoolInitials }: TemplateProps) {
+function RoyalCertificate({ student, certificate, primaryColor, schoolName, logoUrl, tenant, schoolInitials: _schoolInitials }: TemplateProps) {
   const cls = getStudentClass(student, certificate);
   const bodyText = CERT_BODY[certificate.type]?.(student.name, schoolName, cls) || '';
   const gold = '#d4af37';

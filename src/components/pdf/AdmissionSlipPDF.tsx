@@ -3,15 +3,8 @@
 import {
   Document, Page, Text, View, StyleSheet, Image,
 } from '@react-pdf/renderer';
-import { useState, useEffect } from 'react';
-import { Spin, Typography } from 'antd';
-import { LoadingOutlined } from '@ant-design/icons';
 import { Student, Tenant, ThemeColor } from '@/types';
 import { themeTokens } from '@/lib/theme';
-import { getSafeLogoUrl } from '@/lib/utils';
-import { imageUrlToBase64Png } from '@/lib/imageUtils';
-
-const { Text: AntText } = Typography;
 
 const DEFAULT_LOGO = 'https://cdn-icons-png.flaticon.com/512/2231/2231668.png';
 
@@ -142,10 +135,11 @@ export default function AdmissionSlipPDF({ student, tenant, resolvedLogo, creden
         <View style={s.body}>
           {/* Letterhead */}
           <View style={s.letterhead}>
+            {/* eslint-disable-next-line jsx-a11y/alt-text */}
             <Image src={logoSrc} style={s.logo} />
             <View style={s.schoolBlock}>
               <Text style={s.schoolName}>{schoolName}</Text>
-              <Text style={s.schoolType}>{tenant?.type || 'Educational Institution'}</Text>
+              {/* <Text style={s.schoolType}>{tenant?.type || 'Educational Institution'}</Text> */}
               <Text style={s.schoolAddr}>
                 {[tenant?.address, tenant?.city, tenant?.state, tenant?.country].filter(Boolean).join(', ')}
               </Text>

@@ -11,7 +11,7 @@ import {
 } from 'antd';
 import {
   ArrowLeftOutlined, EditOutlined, SaveOutlined, CloseOutlined,
-  FileTextOutlined, SafetyCertificateOutlined, UserOutlined, LockOutlined,
+  FileTextOutlined, SafetyCertificateOutlined, LockOutlined,
   StopOutlined, CheckCircleOutlined, TrophyOutlined, SwapOutlined,
 } from '@ant-design/icons';
 import { formatDate, getInitials, flattenObject } from '@/lib/utils';
@@ -115,6 +115,7 @@ export default function StudentProfilePage() {
     }
   };
   const [resolvedLogo, setResolvedLogo] = useState<string>(DEFAULT_LOGO);
+  const [logoReady, setLogoReady] = useState(false);
   const { user: currentUser } = useAuth();
 
   useEffect(() => {
@@ -130,8 +131,8 @@ export default function StudentProfilePage() {
         const t = tRes.data.data;
         setTenant(t);
         imageUrlToBase64Png(getSafeLogoUrl(t?.branding?.logo, DEFAULT_LOGO))
-          .then(setResolvedLogo)
-          .catch(() => setResolvedLogo(DEFAULT_LOGO));
+          .then((b64) => { setResolvedLogo(b64); setLogoReady(true); })
+          .catch(() => { setResolvedLogo(DEFAULT_LOGO); setLogoReady(true); });
         populateForm(s);
       })
       .catch(() => router.push('/students'))
@@ -366,10 +367,10 @@ export default function StudentProfilePage() {
           {!editing ? (
             <>
               <Link href={`/marksheet/${id}`}>
-                <Button icon={<FileTextOutlined />} size="small" style={{ borderRadius: 8 }}>Marksheet</Button>
+                <Button icon={<FileTextOutlined />} style={{ borderRadius: 8 }}>Marksheet</Button>
               </Link>
               <Link href={`/certificates/new?studentId=${id}`}>
-                <Button icon={<SafetyCertificateOutlined />} size="small" style={{ borderRadius: 8 }}>Certificate</Button>
+                <Button icon={<SafetyCertificateOutlined />} style={{ borderRadius: 8 }}>Certificate</Button>
               </Link>
               {(currentUser?.role === 'management' || currentUser?.role === 'saas_admin') && (
                 <>
@@ -385,7 +386,6 @@ export default function StudentProfilePage() {
                     trigger={['click']}
                   >
                     <Button
-                      size="small"
                       loading={statusChanging}
                       icon={student.status === 'active' ? <CheckCircleOutlined /> : <StopOutlined />}
                       style={{ borderRadius: 8 }}
@@ -393,14 +393,15 @@ export default function StudentProfilePage() {
                       Status
                     </Button>
                   </Dropdown>
-                  <PDFDownloadButton
-                    document={<AdmissionSlipPDF student={student} tenant={tenant} resolvedLogo={resolvedLogo} credentials={{ username: student.admissionNo }} />}
-                    fileName={`admission-slip-${student.admissionNo}.pdf`}
-                    buttonText="Admission Slip"
-                  />
+                  {logoReady && (
+                    <PDFDownloadButton
+                      document={<AdmissionSlipPDF student={student} tenant={tenant} resolvedLogo={resolvedLogo} credentials={{ username: student.admissionNo }} />}
+                      fileName={`admission-slip-${student.admissionNo}.pdf`}
+                      buttonText="Admission Slip"
+                    />
+                  )}
                   <Button 
-                    icon={<LockOutlined />} 
-                    size="small" 
+                    icon={<LockOutlined />}
                     onClick={() => setPassModal(true)} 
                     style={{ borderRadius: 8 }}
                   >
@@ -408,7 +409,7 @@ export default function StudentProfilePage() {
                   </Button>
                 </>
               )}
-              <Button type="primary" icon={<EditOutlined />} size="small" onClick={() => setEditing(true)} style={{ borderRadius: 8 }}>Edit</Button>
+              <Button type="primary" icon={<EditOutlined />} onClick={() => setEditing(true)} style={{ borderRadius: 8 }}>Edit</Button>
             </>
           ) : (
             <>
