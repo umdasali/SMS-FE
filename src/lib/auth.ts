@@ -46,7 +46,7 @@ export const getRoleRedirect = (role: UserRole): string => {
     case 'saas_admin': return '/saas-admin/dashboard';
     case 'management': return '/dashboard';
     case 'teacher':    return '/dashboard';
-    case 'student':    return '/portal/profile';
+    case 'student':    return '/portal';
     default:           return '/login';
   }
 };

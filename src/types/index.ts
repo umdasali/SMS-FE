@@ -289,6 +289,45 @@ export interface Certificate {
   createdAt: string;
 }
 
+// ── Assets ────────────────────────────────────────────────────────────────────
+export interface Asset {
+  _id: string;
+  tenantId: string;
+  name: string;
+  description: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AssetAssignment {
+  _id: string;
+  tenantId: string;
+  assetId: string | Asset;
+  studentId: string | Student;
+  assignedDate: string;
+  notes: string;
+  createdAt: string;
+}
+
+export interface AssetStats {
+  totalAssetTypes: number;
+  totalIssuances: number;
+  studentsIssuedAssets: number;
+}
+
+// ── Announcement ──────────────────────────────────────────────────────────────
+export interface Announcement {
+  _id: string;
+  tenantId: string;
+  title: string;
+  content: string;
+  targetAudience: 'all' | 'students' | 'teachers';
+  isActive: boolean;
+  createdBy?: { _id: string; name: string } | string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // ── API Response ──────────────────────────────────────────────────────────────
 export interface ApiResponse<T = unknown> {
   success: boolean;

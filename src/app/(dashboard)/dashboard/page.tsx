@@ -1,13 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Card, Col, Row, Tag, Typography, Skeleton, Empty } from 'antd';
+import { Card, Col, Row, Tag, Typography, Skeleton, Empty, Modal } from 'antd';
 import {
   TeamOutlined, UserOutlined, BookOutlined, RiseOutlined, CalendarOutlined,
-  ClockCircleOutlined, ArrowRightOutlined,
+  ClockCircleOutlined, ArrowRightOutlined, NotificationOutlined,
 } from '@ant-design/icons';
 import Link from 'next/link';
-import { DashboardStats } from '@/types';
+import { DashboardStats, Announcement } from '@/types';
 import api from '@/lib/api';
 import { formatDate } from '@/lib/utils';
 import {
@@ -100,12 +100,20 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [recentAnnouncements, setRecentAnnouncements] = useState<Announcement[]>([]);
+  const [readAnnouncement, setReadAnnouncement] = useState<Announcement | null>(null);
 
   useEffect(() => {
     api.get<{ data: DashboardStats }>('/dashboard/stats')
       .then((res) => setStats(res.data.data))
       .catch(console.error)
       .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    api.get<{ data: { announcements: Announcement[] } }>('/announcements?limit=5')
+      .then((res) => setRecentAnnouncements(res.data.data.announcements))
+      .catch(console.error);
   }, []);
 
   const greetingHour = new Date().getHours();
@@ -177,7 +185,7 @@ export default function DashboardPage() {
       </Row>
 
       {/* Chart + Upcoming Exams */}
-      <Row gutter={[16, 16]}>
+      <Row gutter={[16, 16]} style={{ marginBottom: recentAnnouncements.length ? 16 : 0 }}>
         {/* Attendance Chart */}
         <Col xs={24} lg={16}>
           <Card
@@ -311,6 +319,105 @@ export default function DashboardPage() {
           </Card>
         </Col>
       </Row>
+
+      {/* Announcements */}
+      {recentAnnouncements.length > 0 && (
+        <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+          <Col xs={24}>
+            <Card
+              title={<span><NotificationOutlined style={{ marginRight: 8 }} />Announcements</span>}
+              extra={<Link href="/announcements"><ArrowRightOutlined style={{ color: '#8c8c8c' }} /></Link>}
+              style={{ borderRadius: 10 }}
+              styles={{ body: { padding: '4px 16px 12px' } }}
+            >
+              {recentAnnouncements.map((a, i) => {
+                const truncated = a.content.length > 100;
+                return (
+                  <div
+                    key={a._id}
+                    onClick={() => setReadAnnouncement(a)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: 12,
+                      padding: '10px 0',
+                      borderBottom: i < recentAnnouncements.length - 1 ? '1px solid #f5f5f5' : 'none',
+                      cursor: 'pointer',
+                      borderRadius: 6,
+                    }}
+                  >
+                    <div style={{
+                      width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+                      background: a.isActive ? 'var(--ant-color-primary-bg)' : '#f5f5f5',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: a.isActive ? 'var(--ant-color-primary)' : '#bfbfbf', fontSize: 14,
+                    }}>
+                      <NotificationOutlined />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <Text strong style={{ fontSize: 13 }}>{a.title}</Text>
+                        <Tag
+                          color={a.targetAudience === 'all' ? 'green' : a.targetAudience === 'students' ? 'blue' : 'purple'}
+                          style={{ fontSize: 10, padding: '0 5px', lineHeight: '16px', margin: 0 }}
+                        >
+                          {a.targetAudience}
+                        </Tag>
+                        {!a.isActive && (
+                          <Tag style={{ fontSize: 10, padding: '0 5px', lineHeight: '16px', margin: 0 }}>Hidden</Tag>
+                        )}
+                      </div>
+                      <Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 2 }}>
+                        {truncated ? `${a.content.slice(0, 100)}…` : a.content}
+                        {truncated && (
+                          <Text style={{ fontSize: 12, color: 'var(--ant-color-primary)', marginLeft: 4 }}>
+                            Read more
+                          </Text>
+                        )}
+                      </Text>
+                    </div>
+                    <Text type="secondary" style={{ fontSize: 11, flexShrink: 0, paddingTop: 2 }}>
+                      {formatDate(a.createdAt)}
+                    </Text>
+                  </div>
+                );
+              })}
+            </Card>
+          </Col>
+        </Row>
+      )}
+
+      {/* Full announcement reader */}
+      <Modal
+        open={!!readAnnouncement}
+        onCancel={() => setReadAnnouncement(null)}
+        footer={null}
+        title={
+          readAnnouncement && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', paddingRight: 24 }}>
+              <span>{readAnnouncement.title}</span>
+              <Tag
+                color={readAnnouncement.targetAudience === 'all' ? 'green' : readAnnouncement.targetAudience === 'students' ? 'blue' : 'purple'}
+                style={{ fontSize: 11, margin: 0 }}
+              >
+                {readAnnouncement.targetAudience}
+              </Tag>
+            </div>
+          )
+        }
+        width={520}
+      >
+        {readAnnouncement && (
+          <div style={{ paddingTop: 8 }}>
+            <Text style={{ fontSize: 14, lineHeight: 1.7, whiteSpace: 'pre-wrap', display: 'block' }}>
+              {readAnnouncement.content}
+            </Text>
+            <Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 16 }}>
+              Posted on {formatDate(readAnnouncement.createdAt)}
+            </Text>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

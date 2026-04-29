@@ -71,7 +71,16 @@ export default function PortalMarksheetPage() {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+      <style>{`
+        .marksheet-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; gap: 12px; flex-wrap: wrap; }
+        .exam-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; gap: 12px; }
+        .exam-card-summary { text-align: right; flex-shrink: 0; }
+        @media (max-width: 480px) {
+          .exam-card-header { flex-wrap: wrap; }
+          .exam-card-summary { text-align: left; }
+        }
+      `}</style>
+      <div className="marksheet-header">
         <div>
           <Title level={3} style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
             <FileTextOutlined /> My Marksheet
@@ -96,16 +105,16 @@ export default function PortalMarksheetPage() {
       ) : (
         groupedMarks.map((group) => (
           <Card key={group.exam?._id} style={{ borderRadius: 10, marginBottom: 16 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-              <div>
+            <div className="exam-card-header">
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <Text strong style={{ fontSize: 15 }}>{group.exam?.name}</Text>
                 <Text type="secondary" style={{ display: 'block', fontSize: 13, textTransform: 'capitalize' }}>
                   {group.exam?.type} — {group.exam?.academicYear}
                 </Text>
               </div>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: 28, fontWeight: 700 }}>{group.percentage}%</div>
-                <Tag style={{ fontWeight: 700, color: getGradeColor(group.grade) }}>Grade: {group.grade}</Tag>
+              <div className="exam-card-summary">
+                <div style={{ fontSize: 26, fontWeight: 700, lineHeight: 1.1 }}>{group.percentage}%</div>
+                <Tag style={{ fontWeight: 700, color: getGradeColor(group.grade), marginTop: 4 }}>Grade: {group.grade}</Tag>
               </div>
             </div>
             <div style={{ overflowX: 'auto' }}>

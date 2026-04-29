@@ -47,6 +47,14 @@ export default function PortalCertificatesPage() {
 
   return (
     <div>
+      <style>{`
+        .cert-card-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+        .cert-card-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+        @media (max-width: 480px) {
+          .cert-card-row { gap: 10px; }
+          .cert-card-actions { width: 100%; justify-content: flex-end; padding-top: 4px; }
+        }
+      `}</style>
       <div style={{ marginBottom: 24 }}>
         <Title level={3} style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
           <SafetyCertificateOutlined /> My Certificates
@@ -60,25 +68,27 @@ export default function PortalCertificatesPage() {
         certificates.map((cert) => (
           <div key={cert._id} style={{ marginBottom: 12 }}>
             <Card style={{ borderRadius: 10 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+              <div className="cert-card-row">
                 <div style={{
-                  width: 48, height: 48, borderRadius: 12,
+                  width: 44, height: 44, borderRadius: 10,
                   background: 'var(--ant-color-primary-bg)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                 }}>
                   <SafetyCertificateOutlined style={{ fontSize: 20, color: 'var(--ant-color-primary)' }} />
                 </div>
-                <div style={{ flex: 1 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
                   <Text strong style={{ fontSize: 14, textTransform: 'capitalize' }}>{cert.type} Certificate</Text>
                   <Text type="secondary" style={{ display: 'block', fontSize: 12 }}>
-                    Issued: {formatDate(cert.issuedDate)} · Serial: {cert.serialNo}
+                    Issued: {formatDate(cert.issuedDate)} · {cert.serialNo}
                   </Text>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Tag color={typeColor[cert.type] || 'default'} style={{ textTransform: 'capitalize' }}>{cert.type}</Tag>
+                <div className="cert-card-actions">
+                  <Tag color={typeColor[cert.type] || 'default'} style={{ textTransform: 'capitalize', margin: 0 }}>{cert.type}</Tag>
                   <Button
                     icon={<DownloadOutlined />}
                     size="small"
+                    type={activeCert === cert._id ? 'default' : 'primary'}
+                    ghost={activeCert === cert._id}
                     onClick={() => setActiveCert(activeCert === cert._id ? null : cert._id)}
                   >
                     {activeCert === cert._id ? 'Hide' : 'Download'}

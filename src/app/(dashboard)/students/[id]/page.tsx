@@ -7,19 +7,20 @@ import Link from 'next/link';
 import { Student, Class } from '@/types';
 import api from '@/lib/api';
 import {
-  Button, Input, Card, Tag, Avatar, Alert, Typography, Select, Tabs, Skeleton, Space, App, Dropdown,
+  Button, Input, Card, Tag, Avatar, Alert, Typography, Select, Tabs, Skeleton, App, Dropdown,
 } from 'antd';
 import {
   ArrowLeftOutlined, EditOutlined, SaveOutlined, CloseOutlined,
   FileTextOutlined, SafetyCertificateOutlined, LockOutlined,
   StopOutlined, CheckCircleOutlined, TrophyOutlined, SwapOutlined,
+  EllipsisOutlined, DownloadOutlined, LoadingOutlined,
 } from '@ant-design/icons';
 import { formatDate, getInitials, flattenObject } from '@/lib/utils';
+import { pdf } from '@react-pdf/renderer';
 
 import { useAuth } from '@/context/AuthContext';
 import ResetPasswordModal from '@/components/modals/ResetPasswordModal';
 import AdmissionSlipPDF from '@/components/pdf/AdmissionSlipPDF';
-import { PDFDownloadButton } from '@/components/pdf/PDFDownloadButton';
 import { Tenant } from '@/types';
 import { imageUrlToBase64Png } from '@/lib/imageUtils';
 import { getSafeLogoUrl } from '@/lib/utils';
@@ -116,7 +117,24 @@ export default function StudentProfilePage() {
   };
   const [resolvedLogo, setResolvedLogo] = useState<string>(DEFAULT_LOGO);
   const [logoReady, setLogoReady] = useState(false);
+  const [admissionLoading, setAdmissionLoading] = useState(false);
   const { user: currentUser } = useAuth();
+
+  const downloadAdmissionSlip = async () => {
+    if (!logoReady || !student) return;
+    setAdmissionLoading(true);
+    try {
+      const blob = await pdf(
+        <AdmissionSlipPDF student={student} tenant={tenant} resolvedLogo={resolvedLogo} credentials={{ username: student.admissionNo }} />
+      ).toBlob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `admission-slip-${student.admissionNo}.pdf`;
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a); URL.revokeObjectURL(url);
+    } catch { /* silently ignore */ }
+    finally { setAdmissionLoading(false); }
+  };
 
   useEffect(() => {
     Promise.all([
@@ -205,7 +223,7 @@ export default function StudentProfilePage() {
     return (
       <div style={{ maxWidth: 980, margin: '0 auto' }}>
         <Skeleton active style={{ marginBottom: 16 }} />
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 16 }}>
+        <div className="sp-main-grid">
           <Card><Skeleton active /></Card>
           <Card><Skeleton active /></Card>
         </div>
@@ -227,7 +245,7 @@ export default function StudentProfilePage() {
       key: 'personal',
       label: 'Personal',
       children: editing ? (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div className="sp-form-grid">
           <div>
             <Text style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 4 }}>Date of Birth</Text>
             <Input type="date" value={form.dob} onChange={(e) => setF('dob')(e.target.value)} />
@@ -261,7 +279,7 @@ export default function StudentProfilePage() {
       key: 'academic',
       label: 'Academic',
       children: editing ? (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div className="sp-form-grid">
           <div>
             <Text style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 4 }}>Class</Text>
             <Select style={{ width: '100%' }} value={form.classId || undefined}
@@ -298,7 +316,7 @@ export default function StudentProfilePage() {
       key: 'address',
       label: 'Address',
       children: editing ? (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div className="sp-form-grid">
           <div style={{ gridColumn: '1 / -1' }}>
             <FieldInput label="Street" value={form.address.street} onChange={(v) => setForm(f => ({ ...f, address: { ...f.address, street: v } }))} placeholder="Street address" />
           </div>
@@ -322,7 +340,7 @@ export default function StudentProfilePage() {
       key: 'parent',
       label: 'Parent',
       children: editing ? (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div className="sp-form-grid">
           <FieldInput label="Father's Name" value={form.parent.fatherName} onChange={(v) => setForm(f => ({ ...f, parent: { ...f.parent, fatherName: v } }))} placeholder="Father's name" />
           <FieldInput label="Mother's Name" value={form.parent.motherName} onChange={(v) => setForm(f => ({ ...f, parent: { ...f.parent, motherName: v } }))} placeholder="Mother's name" />
           <FieldInput label="Guardian Name" value={form.parent.guardianName} onChange={(v) => setForm(f => ({ ...f, parent: { ...f.parent, guardianName: v } }))} placeholder="Guardian name" />
@@ -348,6 +366,11 @@ export default function StudentProfilePage() {
       ),
     },
     {
+      key: 'attendance',
+      label: 'Attendance',
+      children: <StudentAttendanceView studentId={id} />,
+    },
+    {
       key: 'fees',
       label: 'Fees',
       children: <StudentFeesView studentId={id} />,
@@ -357,78 +380,89 @@ export default function StudentProfilePage() {
   return (
     <div style={{ maxWidth: 980, margin: '0 auto' }}>
       {/* Top bar */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-        <Link href="/students"><Button icon={<ArrowLeftOutlined />} type="text" /></Link>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <Title level={4} style={{ margin: 0 }}>{student.name}</Title>
-          <Text type="secondary" style={{ fontSize: 13 }}>{student.admissionNo}</Text>
+      <div className="sp-topbar">
+        <div className="sp-topbar-left">
+          <Link href="/students"><Button icon={<ArrowLeftOutlined />} type="text" /></Link>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <Title level={4} style={{ margin: 0 }}>{student.name}</Title>
+            <Text type="secondary" style={{ fontSize: 13 }}>{student.admissionNo}</Text>
+          </div>
         </div>
-        <Space>
+        <div className="sp-topbar-actions">
           {!editing ? (
             <>
-              <Link href={`/marksheet/${id}`}>
-                <Button icon={<FileTextOutlined />} style={{ borderRadius: 8 }}>Marksheet</Button>
-              </Link>
-              <Link href={`/certificates/new?studentId=${id}`}>
-                <Button icon={<SafetyCertificateOutlined />} style={{ borderRadius: 8 }}>Certificate</Button>
-              </Link>
+              {/* Documents — visible to all roles */}
+              <Dropdown
+                trigger={['click']}
+                menu={{
+                  items: [
+                    { key: 'marksheet', label: 'Marksheet', icon: <FileTextOutlined />, onClick: () => router.push(`/marksheet/${id}`) },
+                    { key: 'certificate', label: 'New Certificate', icon: <SafetyCertificateOutlined />, onClick: () => router.push(`/certificates/new?studentId=${id}`) },
+                  ],
+                }}
+              >
+                <Button icon={<FileTextOutlined />} style={{ borderRadius: 8 }}>
+                  Documents
+                </Button>
+              </Dropdown>
+
+              {/* Manage — admin only: admission slip, status, reset password */}
               {(currentUser?.role === 'management' || currentUser?.role === 'saas_admin') && (
-                <>
-                  <Dropdown
-                    menu={{
-                      items: [
-                        ...(student.status !== 'active' ? [{ key: 'activate', label: 'Activate', icon: <CheckCircleOutlined />, onClick: () => handleStatusChange('active') }] : []),
-                        ...(student.status === 'active' ? [{ key: 'deactivate', label: 'Deactivate', icon: <StopOutlined />, onClick: () => handleStatusChange('inactive') }] : []),
-                        ...(student.status !== 'graduated' ? [{ key: 'graduate', label: 'Mark as Graduated', icon: <TrophyOutlined />, onClick: () => handleStatusChange('graduated') }] : []),
-                        ...(student.status !== 'transferred' ? [{ key: 'transfer', label: 'Mark as Transferred', icon: <SwapOutlined />, onClick: () => handleStatusChange('transferred') }] : []),
-                      ],
-                    }}
-                    trigger={['click']}
-                  >
-                    <Button
-                      loading={statusChanging}
-                      icon={student.status === 'active' ? <CheckCircleOutlined /> : <StopOutlined />}
-                      style={{ borderRadius: 8 }}
-                    >
-                      Status
-                    </Button>
-                  </Dropdown>
-                  {logoReady && (
-                    <PDFDownloadButton
-                      document={<AdmissionSlipPDF student={student} tenant={tenant} resolvedLogo={resolvedLogo} credentials={{ username: student.admissionNo }} />}
-                      fileName={`admission-slip-${student.admissionNo}.pdf`}
-                      buttonText="Admission Slip"
-                    />
-                  )}
-                  <Button 
-                    icon={<LockOutlined />}
-                    onClick={() => setPassModal(true)} 
+                <Dropdown
+                  trigger={['click']}
+                  menu={{
+                    items: [
+                      {
+                        key: 'admission',
+                        label: admissionLoading ? 'Generating PDF…' : 'Admission Slip',
+                        icon: admissionLoading ? <LoadingOutlined /> : <DownloadOutlined />,
+                        disabled: !logoReady || admissionLoading,
+                        onClick: downloadAdmissionSlip,
+                      },
+                      { type: 'divider' as const },
+                      ...(student.status !== 'active'     ? [{ key: 'activate',  label: 'Activate',             icon: <CheckCircleOutlined />, onClick: () => handleStatusChange('active') }]      : []),
+                      ...(student.status === 'active'     ? [{ key: 'deactivate',label: 'Deactivate',           icon: <StopOutlined />,        onClick: () => handleStatusChange('inactive') }]    : []),
+                      ...(student.status !== 'graduated'  ? [{ key: 'graduate',  label: 'Mark as Graduated',    icon: <TrophyOutlined />,      onClick: () => handleStatusChange('graduated') }]   : []),
+                      ...(student.status !== 'transferred'? [{ key: 'transfer',  label: 'Mark as Transferred',  icon: <SwapOutlined />,        onClick: () => handleStatusChange('transferred') }] : []),
+                      { type: 'divider' as const },
+                      { key: 'reset-pwd', label: 'Reset Password', icon: <LockOutlined />, onClick: () => setPassModal(true) },
+                    ],
+                  }}
+                >
+                  <Button
+                    icon={<EllipsisOutlined />}
+                    loading={statusChanging}
                     style={{ borderRadius: 8 }}
                   >
-                    Reset Password
+                    Manage
                   </Button>
-                </>
+                </Dropdown>
               )}
-              <Button type="primary" icon={<EditOutlined />} onClick={() => setEditing(true)} style={{ borderRadius: 8 }}>Edit</Button>
+
+              {/* Edit — primary CTA */}
+              <Button type="primary" icon={<EditOutlined />} onClick={() => setEditing(true)} style={{ borderRadius: 8 }}>
+                Edit
+              </Button>
             </>
           ) : (
             <>
-              <Button icon={<CloseOutlined />} size="small" onClick={() => { if (student) populateForm(student); setEditing(false); setError(''); }} disabled={saving}>Cancel</Button>
-              <Button type="primary" icon={<SaveOutlined />} size="small" loading={saving} onClick={handleSave} style={{ borderRadius: 8 }}>
+              <Button icon={<CloseOutlined />} onClick={() => { if (student) populateForm(student); setEditing(false); setError(''); }} disabled={saving}>Cancel</Button>
+              <Button type="primary" icon={<SaveOutlined />} loading={saving} onClick={handleSave} style={{ borderRadius: 8 }}>
                 Save Changes
               </Button>
             </>
           )}
-        </Space>
+        </div>
       </div>
 
       {error && <Alert title={error} type="error" showIcon style={{ marginBottom: 16, borderRadius: 8 }} />}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '240px 1fr', gap: 16 }}>
+      <div className="sp-main-grid">
         {/* Profile Card */}
-        <Card style={{ borderRadius: 10, height: 'fit-content' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, textAlign: 'center' }}>
-            <div style={{ position: 'relative' }}>
+        <Card style={{ borderRadius: 10, height: 'fit-content', minWidth: 0 }}>
+          {/* Desktop: column-centered. Mobile: row (avatar left, info right) */}
+          <div className="sp-profile-inner">
+            <div style={{ position: 'relative', flexShrink: 0 }}>
               <Avatar
                 size={88}
                 src={displayPhoto}
@@ -451,57 +485,167 @@ export default function StudentProfilePage() {
               )}
             </div>
 
-            {editing ? (
-              <div style={{ width: '100%' }}>
-                <Text style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 4 }}>Full Name</Text>
-                <Input value={form.name} onChange={(e) => setF('name')(e.target.value)} />
-              </div>
-            ) : (
-              <div>
-                <Text strong style={{ fontSize: 16, display: 'block' }}>{student.name}</Text>
-                <Text type="secondary" style={{ fontSize: 13 }}>{student.admissionNo}</Text>
-              </div>
-            )}
+            <div className="sp-profile-info">
+              {editing ? (
+                <div>
+                  <Text style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 4 }}>Full Name</Text>
+                  <Input value={form.name} onChange={(e) => setF('name')(e.target.value)} />
+                </div>
+              ) : (
+                <div>
+                  <Text strong style={{ fontSize: 16, display: 'block' }}>{student.name}</Text>
+                  <Text type="secondary" style={{ fontSize: 13 }}>{student.admissionNo}</Text>
+                </div>
+              )}
 
-            {!editing && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, justifyContent: 'center' }}>
-                <Tag color={statusColor[student.status] || 'default'} style={{ textTransform: 'capitalize' }}>{student.status}</Tag>
-                {student.gender && <Tag style={{ textTransform: 'capitalize' }}>{student.gender}</Tag>}
-                {cls && <Tag>{cls.name}</Tag>}
-              </div>
-            )}
+              {!editing && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
+                  <Tag color={statusColor[student.status] || 'default'} style={{ textTransform: 'capitalize' }}>{student.status}</Tag>
+                  {student.gender && <Tag style={{ textTransform: 'capitalize' }}>{student.gender}</Tag>}
+                  {cls && <Tag>{cls.name}</Tag>}
+                </div>
+              )}
 
-            {editing && (
-              <div style={{ width: '100%' }}>
-                <Text style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 4 }}>Status</Text>
-                <Select style={{ width: '100%' }} value={form.status} onChange={setF('status')}
-                  options={STATUS_OPTIONS.map((s) => ({ value: s, label: s }))} />
-              </div>
-            )}
-
-            {!editing && (
-              <div style={{ width: '100%', borderTop: '1px solid #f0f0f0', paddingTop: 12 }}>
-                <InfoRow label="Roll No." value={student.rollNo} />
-                <InfoRow label="Admission" value={student.admissionDate ? formatDate(student.admissionDate) : undefined} />
-                <InfoRow label="Blood Group" value={student.bloodGroup} />
-                <InfoRow label="Nationality" value={student.nationality} />
-              </div>
-            )}
+              {editing && (
+                <div style={{ marginTop: 8 }}>
+                  <Text style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 4 }}>Status</Text>
+                  <Select style={{ width: '100%' }} value={form.status} onChange={setF('status')}
+                    options={STATUS_OPTIONS.map((s) => ({ value: s, label: s }))} />
+                </div>
+              )}
+            </div>
           </div>
+
+          {!editing && (
+            <div style={{ borderTop: '1px solid #f0f0f0', marginTop: 12, paddingTop: 12 }}>
+              <InfoRow label="Roll No." value={student.rollNo} />
+              <InfoRow label="Admission" value={student.admissionDate ? formatDate(student.admissionDate) : undefined} />
+              <InfoRow label="Blood Group" value={student.bloodGroup} />
+              <InfoRow label="Nationality" value={student.nationality} />
+            </div>
+          )}
         </Card>
 
         {/* Tabs */}
-        <Card style={{ borderRadius: 10 }}>
+        <Card style={{ borderRadius: 10, minWidth: 0 }}>
           <Tabs items={tabItems} defaultActiveKey="personal" />
         </Card>
       </div>
 
-      <ResetPasswordModal 
-        open={passModal} 
-        onCancel={() => setPassModal(false)} 
-        userId={id} 
-        type="students" 
+      <ResetPasswordModal
+        open={passModal}
+        onCancel={() => setPassModal(false)}
+        userId={id}
+        type="students"
       />
+
+      <style>{`
+        /* ── Top bar ─────────────────────────────── */
+        .sp-topbar {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          margin-bottom: 20px;
+          flex-wrap: wrap;
+        }
+        .sp-topbar-left {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          flex: 1;
+          min-width: 0;
+        }
+        .sp-topbar-left .ant-typography {
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .sp-topbar-actions {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+          align-items: center;
+        }
+
+        /* ── Main profile grid ───────────────────── */
+        .sp-main-grid {
+          display: grid;
+          grid-template-columns: 240px 1fr;
+          gap: 16px;
+        }
+        /* Prevent grid children from overflowing their column */
+        .sp-main-grid > * {
+          min-width: 0;
+        }
+
+        /* ── Profile card inner layout ───────────── */
+        .sp-profile-inner {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 12px;
+          text-align: center;
+        }
+        .sp-profile-info {
+          width: 100%;
+        }
+
+        /* ── Edit form grids (2-col) ─────────────── */
+        .sp-form-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 12px;
+        }
+
+        /* ── Stat summary grids (3-col) ──────────── */
+        .sp-stat-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 8px;
+        }
+
+        /* ── Ant Design Tabs: scrollable on narrow screens ── */
+        .sp-main-grid .ant-tabs-nav-wrap {
+          overflow: hidden;
+        }
+
+        /* ── Tablet (≤ 768px) ────────────────────── */
+        @media (max-width: 768px) {
+          .sp-main-grid {
+            grid-template-columns: 1fr;
+          }
+          /* On tablet+, profile card goes horizontal */
+          .sp-profile-inner {
+            flex-direction: row;
+            align-items: flex-start;
+            text-align: left;
+          }
+        }
+
+        /* ── Mobile (≤ 576px) ────────────────────── */
+        @media (max-width: 576px) {
+          .sp-topbar-actions {
+            width: 100%;
+          }
+          .sp-form-grid {
+            grid-template-columns: 1fr;
+          }
+          .sp-stat-grid {
+            grid-template-columns: 1fr 1fr;
+          }
+          /* Tighter card body padding */
+          .sp-main-grid .ant-card-body {
+            padding: 14px 12px;
+          }
+          /* Compact tab labels */
+          .sp-main-grid .ant-tabs-tab {
+            padding: 8px 6px;
+            font-size: 12px;
+            margin: 0 !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }
@@ -557,7 +701,7 @@ function StudentFeesView({ studentId }: { studentId: string }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       {/* Summary */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+      <div className="sp-stat-grid">
         {[
           { label: 'Billed',       value: fmtFee(billed),      color: '#6366f1' },
           { label: 'Collected',    value: fmtFee(collected),   color: '#16a34a' },
@@ -613,7 +757,7 @@ function StudentFeesView({ studentId }: { studentId: string }) {
                   size="small" type="primary" ghost
                   loading={updatingId === slip._id}
                   onClick={() => patch(slip._id, { status: 'paid' })}
-                  style={{ fontSize: 12, minWidth: 84 }}
+                  style={{ fontSize: 12 }}
                 >
                   Mark Paid
                 </Button>
@@ -622,7 +766,7 @@ function StudentFeesView({ studentId }: { studentId: string }) {
                   size="small" danger ghost
                   loading={updatingId === slip._id}
                   onClick={() => patch(slip._id, { status: 'pending' })}
-                  style={{ fontSize: 12, minWidth: 84 }}
+                  style={{ fontSize: 12 }}
                 >
                   Undo
                 </Button>
@@ -633,6 +777,154 @@ function StudentFeesView({ studentId }: { studentId: string }) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+const STATUS_CFG: Record<string, { color: string; bg: string; label: string }> = {
+  present:  { color: '#16a34a', bg: '#f0fdf4', label: 'Present' },
+  absent:   { color: '#dc2626', bg: '#fef2f2', label: 'Absent' },
+  late:     { color: '#ca8a04', bg: '#fefce8', label: 'Late' },
+  'half-day': { color: '#ea580c', bg: '#fff7ed', label: 'Half Day' },
+};
+
+function StudentAttendanceView({ studentId }: { studentId: string }) {
+  const [startDate, setStartDate] = useState(() => {
+    const d = new Date(); d.setDate(1);
+    return d.toISOString().split('T')[0]!;
+  });
+  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]!);
+  const [data, setData] = useState<{
+    attendances: Array<{ date: string; records: Array<{ studentId: string; status: string; note: string }> }>;
+    stats: { present: number; absent: number; late: number; halfDay: number; total: number };
+  } | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const doFetch = (sd: string, ed: string) => {
+    setLoading(true);
+    api.get<{ data: typeof data }>(`/attendance/student/${studentId}?startDate=${sd}&endDate=${ed}`)
+      .then((res) => setData(res.data.data))
+      .finally(() => setLoading(false));
+  };
+
+  // Initial load — only setState in async callbacks so no sync setState in effect body
+  useEffect(() => {
+    api.get<{ data: typeof data }>(`/attendance/student/${studentId}?startDate=${startDate}&endDate=${endDate}`)
+      .then((res) => setData(res.data.data))
+      .finally(() => setLoading(false));
+  }, [studentId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const stats = data?.stats;
+  const percentage = stats && stats.total > 0
+    ? Math.round(((stats.present + stats.late * 0.5) / stats.total) * 100)
+    : 0;
+
+  const dailyRows = (data?.attendances ?? []).map((att) => {
+    const rec = att.records.find((r) => {
+      const sid = typeof r.studentId === 'object' ? (r.studentId as unknown as { _id: string })._id : r.studentId;
+      return sid === studentId;
+    });
+    return rec ? { date: att.date, status: rec.status, note: rec.note } : null;
+  }).filter(Boolean) as Array<{ date: string; status: string; note: string }>;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Date range filter */}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+        <div style={{ flex: '1 1 120px', minWidth: 0 }}>
+          <Text style={{ display: 'block', fontSize: 12, color: '#94a3b8', marginBottom: 4 }}>From</Text>
+          <Input type="date" size="small" value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            style={{ width: '100%' }} />
+        </div>
+        <div style={{ flex: '1 1 120px', minWidth: 0 }}>
+          <Text style={{ display: 'block', fontSize: 12, color: '#94a3b8', marginBottom: 4 }}>To</Text>
+          <Input type="date" size="small" value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            style={{ width: '100%' }} />
+        </div>
+        <Button size="small" type="primary" loading={loading}
+          onClick={() => doFetch(startDate, endDate)}
+          style={{ borderRadius: 6, flexShrink: 0 }}>
+          Apply
+        </Button>
+      </div>
+
+      {loading && !data ? (
+        <Skeleton active paragraph={{ rows: 4 }} />
+      ) : !stats || stats.total === 0 ? (
+        <div style={{ textAlign: 'center', padding: '32px 0', color: '#94a3b8' }}>
+          <Text type="secondary">No attendance records found for this period.</Text>
+        </div>
+      ) : (
+        <>
+          {/* Stats summary */}
+          <div className="sp-stat-grid">
+            {[
+              { label: 'Attendance', value: `${percentage}%`, color: percentage >= 75 ? '#16a34a' : '#dc2626' },
+              { label: 'Days Present', value: stats.present, color: '#16a34a' },
+              { label: 'Days Absent', value: stats.absent, color: '#dc2626' },
+            ].map(({ label, value, color }) => (
+              <div key={label} style={{
+                padding: '10px 12px', borderRadius: 8, background: '#f8fafc',
+                borderLeft: `3px solid ${color}`,
+              }}>
+                <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</div>
+                <div style={{ fontWeight: 700, fontSize: 18, color, marginTop: 2 }}>{value}</div>
+              </div>
+            ))}
+          </div>
+          <div className="sp-stat-grid">
+            {[
+              { label: 'Late', value: stats.late, color: '#ca8a04' },
+              { label: 'Half Day', value: stats.halfDay, color: '#ea580c' },
+              { label: 'Total Days', value: stats.total, color: '#6366f1' },
+            ].map(({ label, value, color }) => (
+              <div key={label} style={{
+                padding: '10px 12px', borderRadius: 8, background: '#f8fafc',
+                borderLeft: `3px solid ${color}`,
+              }}>
+                <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</div>
+                <div style={{ fontWeight: 700, fontSize: 18, color, marginTop: 2 }}>{value}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Per-day history */}
+          {dailyRows.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <Text strong style={{ fontSize: 13 }}>Daily Record</Text>
+              {dailyRows.map(({ date, status, note }) => {
+                const cfg = STATUS_CFG[status] ?? STATUS_CFG.present!;
+                return (
+                  <div key={date} style={{
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    padding: '8px 12px', borderRadius: 8,
+                    border: '1px solid #e2e8f0', background: '#fff',
+                  }}>
+                    <div style={{
+                      width: 36, height: 36, borderRadius: 6, flexShrink: 0,
+                      background: cfg.bg, color: cfg.color,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontWeight: 700, fontSize: 11,
+                    }}>
+                      {cfg.label.slice(0, 2).toUpperCase()}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <Text strong style={{ fontSize: 13 }}>{formatDate(date)}</Text>
+                      {note && <div style={{ fontSize: 11, color: '#94a3b8' }}>{note}</div>}
+                    </div>
+                    <Tag color={status === 'present' ? 'success' : status === 'absent' ? 'error' : status === 'late' ? 'warning' : 'orange'}
+                      style={{ fontWeight: 600 }}>
+                      {cfg.label}
+                    </Tag>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

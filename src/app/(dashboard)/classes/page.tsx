@@ -1,23 +1,33 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import api from '@/lib/api';
 import { Class, Subject, Teacher } from '@/types';
 import {
   Button, Card, Tag, Modal, Form, Input, Select, Typography,
-  Row, Col, Divider, Drawer, Alert, Space, Empty, Skeleton, Pagination, InputNumber, App,
+  Row, Col, Divider, Drawer, Alert, Space, Empty, Skeleton, Pagination, InputNumber, App, Avatar,
 } from 'antd';
 import {
   BookOutlined, PlusOutlined, EditOutlined, DeleteOutlined,
-  ExperimentOutlined, TeamOutlined,
+  ExperimentOutlined, TeamOutlined, SearchOutlined, UserOutlined,
 } from '@ant-design/icons';
+import { useTheme } from '@/context/ThemeContext';
+import { themeTokens } from '@/lib/theme';
 
 const { Title, Text } = Typography;
 
 const CLASS_PREFIXES = ['Standard', 'Class', 'Grade', 'Semester'];
 
+const getClassBadgeLabel = (name: string) => {
+  const num = name.match(/\d+/)?.[0];
+  if (num) return num;
+  return name.replace(/\s+/g, '').slice(0, 2).toUpperCase();
+};
+
 export default function ClassesPage() {
   const { message } = App.useApp();
+  const { color } = useTheme();
+  const accent = themeTokens[color].colorPrimary;
   const [classes, setClasses] = useState<Class[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
@@ -43,9 +53,10 @@ export default function ClassesPage() {
   const [deletingSubject, setDeletingSubject] = useState(false);
 
   const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(12);
+  const [limit] = useState(12);
   const [search, setSearch] = useState('');
   const [total, setTotal] = useState(0);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const fetchClasses = (currentPage = page, currentLimit = limit, currentSearch = search) => {
     setLoading(true);
@@ -53,57 +64,51 @@ export default function ClassesPage() {
     params.append('page', currentPage.toString());
     params.append('limit', currentLimit.toString());
     if (currentSearch) params.append('search', currentSearch);
-    
-    api.get<{ data: { classes: Class[], total: number } }>(`/classes?${params.toString()}`)
-      .then((res) => {
-        setClasses(res.data.data.classes);
-        setTotal(res.data.data.total);
-      })
+
+    api.get<{ data: { classes: Class[]; total: number } }>(`/classes?${params.toString()}`)
+      .then((res) => { setClasses(res.data.data.classes); setTotal(res.data.data.total); })
       .finally(() => setLoading(false));
   };
 
   useEffect(() => {
     fetchClasses(page, limit, search);
-    api.get<{ data: { teachers: Teacher[] } }>('/teachers').then((res) => setTeachers(res.data.data.teachers)).catch(() => { });
+    api.get<{ data: { teachers: Teacher[] } }>('/teachers').then((res) => setTeachers(res.data.data.teachers)).catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleSearchInput = (val: string) => {
+    setSearch(val);
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setPage(1);
+      fetchClasses(1, limit, val);
+    }, 400);
+  };
 
   const openNew = () => {
     setEditing(null); setSections(['A']); setError('');
-    form.resetFields(); 
-    form.setFieldsValue({ 
-      namePrefix: 'Class',
-      academicYear: new Date().getFullYear().toString() 
-    });
+    form.resetFields();
+    form.setFieldsValue({ namePrefix: 'Class', academicYear: new Date().getFullYear().toString() });
     setOpen(true);
   };
 
   const openEdit = (cls: Class) => {
     setEditing(cls); setSections(cls.sections.map((s) => s.name)); setError('');
-    
-    // Attempt to split name into prefix and number
     const nameParts = cls.name.split(' ');
     let prefix = 'Class';
     let number: string | number = cls.name;
-
-    if (nameParts.length > 1 && CLASS_PREFIXES.includes(nameParts[0])) {
-      prefix = nameParts[0];
+    if (nameParts.length > 1 && CLASS_PREFIXES.includes(nameParts[0]!)) {
+      prefix = nameParts[0]!;
       const possibleNum = parseInt(nameParts.slice(1).join(' '));
       number = !isNaN(possibleNum) ? possibleNum : nameParts.slice(1).join(' ');
     } else {
-      // If first word isn't a known prefix, check if it starts with a known prefix
-      const matchedPrefix = CLASS_PREFIXES.find(p => cls.name.startsWith(p));
+      const matchedPrefix = CLASS_PREFIXES.find((p) => cls.name.startsWith(p));
       if (matchedPrefix) {
         prefix = matchedPrefix;
         const possibleNum = parseInt(cls.name.slice(matchedPrefix.length).trim());
         number = !isNaN(possibleNum) ? possibleNum : cls.name.slice(matchedPrefix.length).trim();
       }
     }
-
-    form.setFieldsValue({ 
-      namePrefix: prefix, 
-      nameNumber: number,
-      academicYear: cls.academicYear 
-    });
+    form.setFieldsValue({ namePrefix: prefix, nameNumber: number, academicYear: cls.academicYear });
     setOpen(true);
   };
 
@@ -118,16 +123,13 @@ export default function ClassesPage() {
     if (sections.length === 0) { setError('At least one section is required'); return; }
     setSaving(true); setError('');
     try {
-      const payload = { 
+      const payload = {
         name: `${values.namePrefix} ${values.nameNumber}`.trim(),
         academicYear: values.academicYear,
-        sections: sections.map((name) => ({ name })) 
+        sections: sections.map((name) => ({ name })),
       };
-      if (editing) {
-        await api.put(`/classes/${editing._id}`, payload);
-      } else {
-        await api.post('/classes', payload);
-      }
+      if (editing) { await api.put(`/classes/${editing._id}`, payload); }
+      else { await api.post('/classes', payload); }
       fetchClasses(page, limit, search);
       setOpen(false);
       message.success(editing ? 'Class updated successfully' : 'Class created successfully');
@@ -164,7 +166,7 @@ export default function ClassesPage() {
 
   const openEditSubject = (sub: Subject) => {
     setEditingSubject(sub); setSubjectError('');
-    const tId = typeof sub.teacherId === 'object' && sub.teacherId ? sub.teacherId._id : sub.teacherId as string;
+    const tId = typeof sub.teacherId === 'object' && sub.teacherId ? sub.teacherId._id : (sub.teacherId as string);
     subjectForm.setFieldsValue({ name: sub.name, code: sub.code, fullMarks: sub.fullMarks, passMarks: sub.passMarks, teacherId: tId || '__none__' });
     setSubjectOpen(true);
   };
@@ -209,103 +211,122 @@ export default function ClassesPage() {
 
   return (
     <div>
-      <div className="classes-header">
-        <div style={{ marginBottom: 16 }}>
+      {/* Header */}
+      <div className="cls-header">
+        <div>
           <Title level={3} style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
             <BookOutlined /> Classes
           </Title>
-          <Text type="secondary">{total} classes configured</Text>
+          <Text type="secondary">{total} class{total !== 1 ? 'es' : ''} configured</Text>
         </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', width: '100%', maxWidth: 450 }}>
+        <div className="cls-header-actions">
           <Input
-            placeholder="Search classes..."
+            prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />}
+            placeholder="Search classes…"
+            value={search}
+            onChange={(e) => handleSearchInput(e.target.value)}
             allowClear
-            onChange={(e) => {
-              const val = e.target.value;
-              setSearch(val);
-              setPage(1);
-              fetchClasses(1, limit, val);
-            }}
-            style={{ flex: 1, minWidth: 200, borderRadius: 8 }}
-            prefix={<PlusOutlined style={{ display: 'none' }} />} // Just to match structure
+            onClear={() => handleSearchInput('')}
+            style={{ borderRadius: 8, flex: 1, minWidth: 180 }}
           />
-          <Button type="primary" icon={<PlusOutlined />} onClick={openNew} style={{ borderRadius: 8 }}>
+          <Button type="primary" icon={<PlusOutlined />} onClick={openNew} style={{ borderRadius: 8, flexShrink: 0 }}>
             Add Class
           </Button>
         </div>
       </div>
 
-      <style>{`
-        .classes-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          margin-bottom: 24px;
-          flex-wrap: wrap;
-          gap: 16px;
-        }
-        @media (max-width: 576px) {
-          .classes-header {
-            flex-direction: column;
-            align-items: flex-start;
-          }
-        }
-      `}</style>
-
+      {/* Grid */}
       {loading ? (
         <Row gutter={[16, 16]}>
-          {[1, 2, 3, 4, 5, 6].map((i) => <Col xs={24} md={12} lg={8} key={i}><Card><Skeleton active /></Card></Col>)}
-        </Row>
-      ) : classes.length === 0 ? (
-        <Empty description="No classes yet. Create your first class to get started." />
-      ) : (
-        <Row gutter={[16, 16]}>
-          {classes.map((cls) => (
-            <Col xs={24} md={12} lg={8} key={cls._id}>
-              <Card
-                style={{ borderRadius: 10 }}
-                title={<div><Title level={5} style={{ margin: 0 }}>{cls.name}</Title><Text type="secondary" style={{ fontSize: 12 }}>Academic Year: {cls.academicYear}</Text></div>}
-                extra={
-                  <Space>
-                    <Button type="text" icon={<EditOutlined />} size="small" onClick={() => openEdit(cls)} />
-                    <Button type="text" danger icon={<DeleteOutlined />} size="small" onClick={() => setDeleteClassId(cls._id)} />
-                  </Space>
-                }
-              >
-                <div style={{ marginBottom: 12 }}>
-                  <Space><TeamOutlined style={{ color: '#8c8c8c' }} /><Text type="secondary">{cls.sections.length} section{cls.sections.length !== 1 ? 's' : ''}</Text></Space>
-                  <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {cls.sections.map((s) => <Tag key={s.name}>Section {s.name}</Tag>)}
-                  </div>
-                </div>
-                <Divider style={{ margin: '12px 0' }} />
-                <Button
-                  type="text" block icon={<ExperimentOutlined />}
-                  style={{ color: '#8c8c8c', justifyContent: 'flex-start' }}
-                  onClick={() => openSubjectsDrawer(cls)}
-                >
-                  Manage Subjects
-                </Button>
-              </Card>
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <Col xs={24} sm={12} lg={8} key={i}>
+              <Card style={{ borderRadius: 12 }}><Skeleton active avatar paragraph={{ rows: 2 }} /></Card>
             </Col>
           ))}
         </Row>
+      ) : classes.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '64px 0' }}>
+          <BookOutlined style={{ fontSize: 48, color: '#d9d9d9', display: 'block', marginBottom: 12 }} />
+          <Title level={5} type="secondary" style={{ fontWeight: 400 }}>No classes yet</Title>
+          <Text type="secondary">Create your first class to get started</Text>
+          <div style={{ marginTop: 20 }}>
+            <Button type="primary" icon={<PlusOutlined />} onClick={openNew} style={{ borderRadius: 8 }}>
+              Add Class
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <Row gutter={[16, 16]}>
+          {classes.map((cls) => {
+            const badge = getClassBadgeLabel(cls.name);
+            return (
+              <Col xs={24} sm={12} lg={8} key={cls._id}>
+                <Card
+                  className="cls-card"
+                  style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid #f0f0f0', borderLeft: `3px solid ${accent}` }}
+                  styles={{ body: { padding: 0 } }}
+                >
+                  {/* Card header */}
+                  <div style={{ padding: '16px 18px 14px', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                    <Avatar
+                      size={46}
+                      style={{ background: `${accent}15`, color: accent, fontSize: 17, fontWeight: 700, flexShrink: 0, borderRadius: 10 }}
+                    >
+                      {badge}
+                    </Avatar>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <Text strong style={{ fontSize: 15, display: 'block', lineHeight: '1.3' }}>{cls.name}</Text>
+                      <Tag color="default" style={{ fontSize: 11, marginTop: 4 }}>AY {cls.academicYear}</Tag>
+                    </div>
+                    <Space size={2} style={{ flexShrink: 0 }}>
+                      <Button type="text" size="small" icon={<EditOutlined />} onClick={() => openEdit(cls)} style={{ color: '#8c8c8c' }} />
+                      <Button type="text" size="small" danger icon={<DeleteOutlined />} onClick={() => setDeleteClassId(cls._id)} />
+                    </Space>
+                  </div>
+
+                  {/* Sections */}
+                  <div style={{ padding: '0 18px 14px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                      <TeamOutlined style={{ fontSize: 12, color: '#8c8c8c' }} />
+                      <Text type="secondary" style={{ fontSize: 12 }}>
+                        {cls.sections.length} section{cls.sections.length !== 1 ? 's' : ''}
+                      </Text>
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                      {cls.sections.map((s) => (
+                        <Tag key={s.name} style={{ borderRadius: 20, fontSize: 12 }}>{s.name}</Tag>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Footer */}
+                  <div style={{ borderTop: '1px solid #f5f5f5', padding: '10px 18px' }}>
+                    <Button
+                      block
+                      icon={<ExperimentOutlined />}
+                      onClick={() => openSubjectsDrawer(cls)}
+                      style={{ borderRadius: 8, fontSize: 13 }}
+                    >
+                      Manage Subjects
+                    </Button>
+                  </div>
+                </Card>
+              </Col>
+            );
+          })}
+        </Row>
       )}
 
+      {/* Pagination */}
       {total > 0 && !loading && (
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 24 }}>
           <Pagination
             current={page}
             pageSize={limit}
             total={total}
-            showSizeChanger
-            pageSizeOptions={['12', '24', '48', '96']}
-            onChange={(newPage, newPageSize) => {
-              setPage(newPage);
-              setLimit(newPageSize);
-              fetchClasses(newPage, newPageSize, search);
-            }}
-            showTotal={(t, range) => `${range[0]}–${range[1]} of ${t} classes`}
+            showSizeChanger={false}
+            onChange={(newPage) => { setPage(newPage); fetchClasses(newPage, limit, search); }}
+            showTotal={(t, range) => `${range[0]}–${range[1]} of ${t}`}
           />
         </div>
       )}
@@ -319,7 +340,7 @@ export default function ClassesPage() {
         okText={editing ? 'Save Changes' : 'Create Class'}
         confirmLoading={saving}
       >
-        {error && <Alert title={error} type="error" showIcon style={{ marginBottom: 16 }} />}
+        {error && <Alert message={error} type="error" showIcon style={{ marginBottom: 16 }} />}
         <Form form={form} layout="vertical">
           <Row gutter={12}>
             <Col xs={24} sm={16}>
@@ -327,7 +348,7 @@ export default function ClassesPage() {
                 <Row gutter={8}>
                   <Col span={10}>
                     <Form.Item name="namePrefix" rules={[{ required: true, message: 'Select prefix' }]}>
-                      <Select options={CLASS_PREFIXES.map(p => ({ value: p, label: p }))} />
+                      <Select options={CLASS_PREFIXES.map((p) => ({ value: p, label: p }))} />
                     </Form.Item>
                   </Col>
                   <Col span={14}>
@@ -365,45 +386,78 @@ export default function ClassesPage() {
 
       {/* Subjects Drawer */}
       <Drawer
-        title={<span><ExperimentOutlined style={{ marginRight: 8 }} />Subjects — {subjectClass?.name}</span>}
+        title={
+          <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <ExperimentOutlined />
+            {subjectClass?.name} — Subjects
+          </span>
+        }
         open={!!subjectClass}
         onClose={() => setSubjectClass(null)}
         size="default"
-        extra={<Button type="primary" icon={<PlusOutlined />} size="small" onClick={openNewSubject}>Add Subject</Button>}
+        extra={
+          <Button type="primary" icon={<PlusOutlined />} size="small" onClick={openNewSubject} style={{ borderRadius: 6 }}>
+            Add Subject
+          </Button>
+        }
       >
         {subjectsLoading ? (
-          <Space orientation="vertical" style={{ width: '100%' }}>
-            {[1, 2, 3].map((i) => <Card key={i}><Skeleton active /></Card>)}
+          <Space orientation="vertical" style={{ width: '100%' }} size={12}>
+            {[1, 2, 3].map((i) => <Card key={i} style={{ borderRadius: 8 }}><Skeleton active paragraph={{ rows: 1 }} /></Card>)}
           </Space>
         ) : subjects.length === 0 ? (
-          <Empty description="No subjects yet for this class." />
+          <Empty
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+            description={<Text type="secondary">No subjects yet for this class</Text>}
+            style={{ marginTop: 40 }}
+          >
+            <Button type="primary" icon={<PlusOutlined />} onClick={openNewSubject} style={{ borderRadius: 6 }}>
+              Add First Subject
+            </Button>
+          </Empty>
         ) : (
-          <Space orientation="vertical" style={{ width: '100%' }} size={8}>
+          <Space orientation="vertical" style={{ width: '100%' }} size={10}>
             {subjects.map((sub) => {
               const teacher = typeof sub.teacherId === 'object' && sub.teacherId ? sub.teacherId : null;
               return (
-                <Card key={sub._id} size="small" style={{ borderRadius: 8 }}
-                  extra={
-                    <Space>
+                <Card
+                  key={sub._id}
+                  size="small"
+                  style={{ borderRadius: 10 }}
+                  styles={{ body: { padding: '12px 14px' } }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <Text strong style={{ fontSize: 14 }}>{sub.name}</Text>
+                        <Tag style={{ fontFamily: 'monospace', fontSize: 11 }}>{sub.code}</Tag>
+                      </div>
+                      <div style={{ display: 'flex', gap: 12, marginTop: 6, flexWrap: 'wrap' }}>
+                        <Text type="secondary" style={{ fontSize: 12 }}>Full marks: <b>{sub.fullMarks}</b></Text>
+                        <Text type="secondary" style={{ fontSize: 12 }}>Pass marks: <b>{sub.passMarks}</b></Text>
+                      </div>
+                      {teacher && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
+                          <Avatar size={18} icon={<UserOutlined />} style={{ background: '#f0f0f0', color: '#8c8c8c', fontSize: 10 }} />
+                          <Text type="secondary" style={{ fontSize: 12 }}>{teacher.name}</Text>
+                        </div>
+                      )}
+                    </div>
+                    <Space size={2} style={{ flexShrink: 0 }}>
                       <Button type="text" size="small" icon={<EditOutlined />} onClick={() => openEditSubject(sub)} />
                       <Button type="text" size="small" danger icon={<DeleteOutlined />} onClick={() => setDeleteSubjectId(sub._id)} />
                     </Space>
-                  }
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                    <Text strong>{sub.name}</Text>
-                    <Tag style={{ fontFamily: 'monospace' }}>{sub.code}</Tag>
                   </div>
-                  <Space separator="·">
-                    <Text type="secondary" style={{ fontSize: 12 }}>Full: {sub.fullMarks}</Text>
-                    <Text type="secondary" style={{ fontSize: 12 }}>Pass: {sub.passMarks}</Text>
-                    {teacher && <Text type="secondary" style={{ fontSize: 12 }}>Teacher: {teacher.name}</Text>}
-                  </Space>
                 </Card>
               );
             })}
           </Space>
         )}
+
+        <Divider />
+        <Text type="secondary" style={{ fontSize: 12 }}>
+          {subjects.length} subject{subjects.length !== 1 ? 's' : ''} in {subjectClass?.name}
+        </Text>
       </Drawer>
 
       {/* Subject modal */}
@@ -415,7 +469,7 @@ export default function ClassesPage() {
         okText={editingSubject ? 'Save Changes' : 'Add Subject'}
         confirmLoading={subjectSaving}
       >
-        {subjectError && <Alert title={subjectError} type="error" showIcon style={{ marginBottom: 16 }} />}
+        {subjectError && <Alert message={subjectError} type="error" showIcon style={{ marginBottom: 16 }} />}
         <Form form={subjectForm} layout="vertical">
           <Row gutter={12}>
             <Col xs={24} sm={12}>
@@ -431,7 +485,7 @@ export default function ClassesPage() {
             <Col span={24}>
               <Form.Item name="teacherId" label="Assign Teacher">
                 <Select
-                  placeholder="Optional"
+                  placeholder="Optional — select a teacher"
                   style={{ width: '100%' }}
                   options={[
                     { value: '__none__', label: 'None' },
@@ -441,22 +495,70 @@ export default function ClassesPage() {
               </Form.Item>
             </Col>
             <Col xs={12}>
-              <Form.Item name="fullMarks" label="Full Marks"><Input type="number" min={1} /></Form.Item>
+              <Form.Item name="fullMarks" label="Full Marks">
+                <Input type="number" min={1} />
+              </Form.Item>
             </Col>
             <Col xs={12}>
-              <Form.Item name="passMarks" label="Pass Marks"><Input type="number" min={1} /></Form.Item>
+              <Form.Item name="passMarks" label="Pass Marks">
+                <Input type="number" min={1} />
+              </Form.Item>
             </Col>
           </Row>
         </Form>
       </Modal>
 
       {/* Delete confirmations */}
-      <Modal title="Delete Class?" open={!!deleteClassId} onCancel={() => setDeleteClassId(null)} onOk={handleDelete} okText="Delete Class" okButtonProps={{ danger: true, loading: deletingClass }}>
-        This will permanently remove the class and may affect students, subjects, and attendance data.
+      <Modal
+        title="Delete Class?"
+        open={!!deleteClassId}
+        onCancel={() => setDeleteClassId(null)}
+        onOk={handleDelete}
+        okText="Delete Class"
+        okButtonProps={{ danger: true, loading: deletingClass }}
+        cancelButtonProps={{ disabled: deletingClass }}
+      >
+        This will permanently remove the class and may affect students, subjects, and attendance data. This action cannot be undone.
       </Modal>
-      <Modal title="Delete Subject?" open={!!deleteSubjectId} onCancel={() => setDeleteSubjectId(null)} onOk={handleDeleteSubject} okText="Delete Subject" okButtonProps={{ danger: true, loading: deletingSubject }}>
+      <Modal
+        title="Delete Subject?"
+        open={!!deleteSubjectId}
+        onCancel={() => setDeleteSubjectId(null)}
+        onOk={handleDeleteSubject}
+        okText="Delete Subject"
+        okButtonProps={{ danger: true, loading: deletingSubject }}
+        cancelButtonProps={{ disabled: deletingSubject }}
+      >
         Marks and timetable entries linked to this subject may be affected. This action cannot be undone.
       </Modal>
+
+      <style>{`
+        .cls-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 24px;
+          flex-wrap: wrap;
+          gap: 16px;
+        }
+        .cls-header-actions {
+          display: flex;
+          gap: 8px;
+          align-items: center;
+          flex-shrink: 0;
+        }
+        .cls-card {
+          transition: box-shadow 0.2s, transform 0.2s;
+        }
+        .cls-card:hover {
+          box-shadow: 0 4px 20px rgba(0,0,0,0.09);
+          transform: translateY(-2px);
+        }
+        @media (max-width: 576px) {
+          .cls-header { flex-direction: column; align-items: flex-start; }
+          .cls-header-actions { width: 100%; flex-shrink: unset; }
+        }
+      `}</style>
     </div>
   );
 }

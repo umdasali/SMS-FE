@@ -16,11 +16,11 @@ const DAY_COLOR: Record<string, string> = {
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const;
 
-/** Returns "2025-2026" based on current date (new year starts in April) */
+/** Returns current academic year hint, e.g. "2025-2026". Year starts in April. */
 function currentAcademicYear(): string {
   const now = new Date();
   const year = now.getFullYear();
-  const month = now.getMonth() + 1; // 1-indexed
+  const month = now.getMonth() + 1;
   const start = month >= 4 ? year : year - 1;
   return `${start}-${start + 1}`;
 }
@@ -39,23 +39,23 @@ export default function PortalSchedulePage() {
       const classId = typeof student.classId === 'object' ? student.classId?._id : student.classId;
       if (!classId) { setLoading(false); setNotFound(true); return; }
 
-      const year = currentAcademicYear();
-      setAcademicYear(year);
-
-      const params = new URLSearchParams({ classId, academicYear: year });
+      const params = new URLSearchParams({ classId, academicYear: currentAcademicYear() });
       if (student.sectionId) params.set('sectionId', student.sectionId);
 
       try {
         const res = await api.get<{ data: Routine | null }>(`/routines?${params}`);
-        if (res.data.data) {
-          setRoutine(res.data.data);
+        const r = res.data.data;
+        if (r) {
+          setRoutine(r);
+          setAcademicYear(r.academicYear || currentAcademicYear());
         } else {
           setNotFound(true);
         }
       } catch {
         setNotFound(true);
       }
-    }).finally(() => setLoading(false));
+    }).catch(() => setNotFound(true))
+      .finally(() => setLoading(false));
   }, [user]);
 
   if (loading) return <Skeleton active paragraph={{ rows: 8 }} />;
@@ -99,7 +99,7 @@ export default function PortalSchedulePage() {
                 </div>
 
                 {periods.length > 0 && (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 8 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 8 }}>
                     {periods.map((period, idx) => {
                       const subject = period.subjectId as Subject | undefined;
                       const teacher = period.teacherId as Teacher | undefined;

@@ -49,14 +49,14 @@ export default function PortalFeesPage() {
       ) : (
         <>
           {/* Summary strip */}
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 16 }}>
             {[
               { label: 'Total Billed', value: fmt(total), color: '#6366f1', bg: '#eef2ff' },
               { label: 'Paid', value: fmt(paid), color: '#16a34a', bg: '#f0fdf4' },
               { label: 'Outstanding', value: fmt(pending), color: '#dc2626', bg: '#fef2f2' },
             ].map(s => (
               <div key={s.label} style={{
-                flex: 1, minWidth: 120, padding: '12px 16px',
+                padding: '12px 14px',
                 borderRadius: 10, background: s.bg,
                 borderLeft: `3px solid ${s.color}`,
               }}>
@@ -116,13 +116,13 @@ export default function PortalFeesPage() {
                           )}
                         </div>
                       </div>
-                      <div style={{ textAlign: 'right' }}>
+                      <div style={{ flexShrink: 0, textAlign: 'right' }}>
                         <div style={{ fontSize: 16, fontWeight: 700 }}>{fmt(slip.netAmount)}</div>
                         {slip.discount > 0 && (
-                          <Text type="secondary" style={{ fontSize: 11 }}>Discount: {fmt(slip.discount)}</Text>
+                          <Text type="secondary" style={{ fontSize: 11 }}>-{fmt(slip.discount)}</Text>
                         )}
                         <div style={{ marginTop: 4 }}>
-                          <Tag color={slip.status === 'paid' ? 'success' : overdue ? 'error' : 'warning'} style={{ textTransform: 'capitalize' }}>
+                          <Tag color={slip.status === 'paid' ? 'success' : overdue ? 'error' : 'warning'} style={{ textTransform: 'capitalize', margin: 0 }}>
                             {slip.status === 'partially_paid' ? 'Partial' : slip.status}
                           </Tag>
                         </div>

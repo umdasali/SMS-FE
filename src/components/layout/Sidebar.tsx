@@ -9,7 +9,7 @@ import {
   DashboardOutlined, TeamOutlined, UserOutlined, BookOutlined,
   ScheduleOutlined, CheckSquareOutlined, FileTextOutlined,
   SafetyCertificateOutlined, SettingOutlined, LogoutOutlined,
-  ReadOutlined, DollarOutlined,
+  ReadOutlined, DollarOutlined, GiftOutlined, NotificationOutlined,
 } from '@ant-design/icons';
 
 const { Text } = Typography;
@@ -32,6 +32,8 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Attendance', href: '/attendance', icon: <CheckSquareOutlined />, roles: ['management', 'teacher'] },
   { label: 'Exams & Marks', href: '/exams', icon: <FileTextOutlined />, roles: ['management', 'teacher'] },
   { label: 'Certificates', href: '/certificates', icon: <SafetyCertificateOutlined />, roles: ['management'] },
+  { label: 'Assets', href: '/assets', icon: <GiftOutlined />, roles: ['management'] },
+  { label: 'Announcements', href: '/announcements', icon: <NotificationOutlined />, roles: ['management'] },
   { label: 'Finance', href: '/finance', icon: <DollarOutlined />, roles: ['management'] },
 ];
 

@@ -42,13 +42,16 @@ export default function AttendancePage() {
     api.get<{ data: { classes: Class[] } }>('/classes').then((res) => setClasses(res.data.data.classes));
   }, []);
 
-  const loadStudentsAndAttendance = async (cId: string, selectedDate: string) => {
+  const loadStudentsAndAttendance = async (cId: string, sId: string, selectedDate: string) => {
     if (!cId) return;
     setLoading(true);
     try {
+      const studentQuery = `/students?classId=${cId}&status=active&limit=200${sId ? `&sectionId=${sId}` : ''}`;
+      const attendanceQuery = `/attendance?classId=${cId}&date=${selectedDate}${sId ? `&sectionId=${sId}` : ''}`;
+
       const [studentsRes, attendanceRes] = await Promise.all([
-        api.get<{ data: { students: Student[] } }>(`/students?classId=${cId}&status=active&limit=200`),
-        api.get<{ data: unknown[] }>(`/attendance?classId=${cId}&date=${selectedDate}`).catch(() => ({ data: { data: [] } })),
+        api.get<{ data: { students: Student[] } }>(studentQuery),
+        api.get<{ data: unknown[] }>(attendanceQuery).catch(() => ({ data: { data: [] } })),
       ]);
 
       const sts = studentsRes.data.data.students;
@@ -58,12 +61,13 @@ export default function AttendancePage() {
       const init: Record<string, AttendanceEntry> = {};
       sts.forEach((s) => { init[s._id] = { studentId: s._id, status: 'present', note: '' }; });
 
-      // Overlay with saved records if attendance already exists for this date
-      const existing = (attendanceRes.data.data ?? []) as Array<{ records: Array<{ studentId: string; status: AttendanceStatus; note: string }> }>;
+      // Overlay with saved records — studentId may be a populated Student object
+      const existing = (attendanceRes.data.data ?? []) as Array<{ records: Array<{ studentId: string | { _id: string }; status: AttendanceStatus; note: string }> }>;
       if (existing.length > 0 && existing[0]?.records) {
         existing[0].records.forEach((r) => {
-          if (init[r.studentId]) {
-            init[r.studentId] = { studentId: r.studentId, status: r.status, note: r.note || '' };
+          const sid = typeof r.studentId === 'object' ? r.studentId._id : r.studentId;
+          if (init[sid]) {
+            init[sid] = { studentId: sid, status: r.status, note: r.note || '' };
           }
         });
       }
@@ -74,7 +78,7 @@ export default function AttendancePage() {
 
   // Reload attendance when date changes (if a class is already selected)
   useEffect(() => {
-    if (classId) loadStudentsAndAttendance(classId, date);
+    if (classId) loadStudentsAndAttendance(classId, sectionId, date);
   }, [date]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const setStatus = (studentId: string, status: AttendanceStatus) => {
@@ -123,7 +127,7 @@ export default function AttendancePage() {
               <Select
                 style={{ width: '100%' }}
                 placeholder="Select class"
-                onChange={(v) => { setClassId(v); setSectionId(''); loadStudentsAndAttendance(v, date); }}
+                onChange={(v) => { setClassId(v); setSectionId(''); loadStudentsAndAttendance(v, '', date); }}
                 options={classes.map((c) => ({ value: c._id, label: c.name }))}
               />
             </div>
@@ -135,7 +139,7 @@ export default function AttendancePage() {
                 style={{ width: '100%' }}
                 placeholder="All"
                 value={sectionId || undefined}
-                onChange={setSectionId}
+                onChange={(v) => { const s = v ?? ''; setSectionId(s); if (classId) loadStudentsAndAttendance(classId, s, date); }}
                 allowClear
                 options={selectedClass?.sections.map((s) => ({ value: s.name, label: s.name })) ?? []}
               />

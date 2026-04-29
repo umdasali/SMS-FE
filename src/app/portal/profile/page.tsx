@@ -212,8 +212,9 @@ export default function PortalProfilePage() {
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            padding: 24px 16px 0 16px;
-            margin-bottom: 70px;
+            padding: 20px 16px 20px 16px;
+            margin-bottom: 16px;
+            min-height: auto;
           }
           .profile-identity-wrapper {
             flex-direction: column;
@@ -223,20 +224,43 @@ export default function PortalProfilePage() {
           }
           .profile-header-text {
             padding-bottom: 0;
-            margin-bottom: 12px;
+            margin-bottom: 0;
           }
           .profile-header-text h2 {
-            font-size: 24px !important;
-            white-space: normal;
+            font-size: 20px !important;
           }
           .profile-header-tags {
             justify-content: center;
           }
+          /* Remove the floating effect on mobile — avatar stays in flow */
           .profile-avatar-wrapper {
-            transform: translateY(50px);
+            transform: none;
           }
           .profile-avatar-wrapper:hover {
-            transform: translateY(40px) scale(1.05);
+            transform: scale(1.05);
+          }
+          .bento-info-row {
+            padding: 8px;
+            gap: 10px;
+          }
+          .bento-icon-wrapper {
+            width: 32px;
+            height: 32px;
+            font-size: 14px;
+          }
+          .bento-value {
+            font-size: 13px;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .hero-banner {
+            padding: 16px 12px 16px 12px;
+            margin-bottom: 12px;
+            min-height: auto;
+          }
+          .profile-header-text h2 {
+            font-size: 18px !important;
           }
         }
 
@@ -260,7 +284,7 @@ export default function PortalProfilePage() {
             </Avatar>
           </div>
           <div className="profile-header-text">
-            <Title level={2} style={{ color: 'white', margin: 0, letterSpacing: '0.5px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</Title>
+            <Title level={2} style={{ color: 'white', margin: 0, letterSpacing: '0.5px', wordBreak: 'break-word' }}>{name}</Title>
             <div className="profile-header-tags">
               {student && <Tag color="white" style={{ color: 'var(--ant-color-primary)', fontWeight: 600, border: 'none' }}>{student.admissionNo}</Tag>}
               {teacher && <Tag color="white" style={{ color: 'var(--ant-color-primary)', fontWeight: 600, border: 'none' }}>{teacher.employeeId}</Tag>}
