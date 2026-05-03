@@ -5,7 +5,7 @@ import {
   App, Card, Button, Tag, Switch, Modal, Form, Input, Select,
   Popconfirm, Typography, Spin, Empty, Pagination,
 } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, NotificationOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, DeleteOutlined, NotificationOutlined, CheckOutlined, CloseOutlined } from '@ant-design/icons';
 import { Announcement } from '@/types';
 import api from '@/lib/api';
 import { formatDate } from '@/lib/utils';
@@ -220,7 +220,7 @@ export default function AnnouncementsPage() {
                     checked={a.isActive}
                     onChange={() => handleToggle(a)}
                     checkedChildren="Active"
-                    unCheckedChildren="Off"
+                    unCheckedChildren="Inactive"
                   />
                   <Text type="secondary" style={{ fontSize: 12 }}>{formatDate(a.createdAt)}</Text>
                   <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
@@ -300,7 +300,7 @@ export default function AnnouncementsPage() {
             />
           </Form.Item>
           <Form.Item name="isActive" label="Visible" valuePropName="checked">
-            <Switch checkedChildren="Visible to recipients" unCheckedChildren="Hidden" />
+            <Switch checkedChildren={<CheckOutlined />} unCheckedChildren={<CloseOutlined />} />
           </Form.Item>
         </Form>
       </Modal>
